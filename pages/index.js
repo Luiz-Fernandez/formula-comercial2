@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Save, Download, Users, DollarSign, TrendingUp, AlertCircle, CheckCircle, Clock, Calendar, FileText, Bell, RefreshCw, Moon, Sun, Menu, Target, Star, ClipboardList, UserCheck, Award, ChevronRight, ChevronDown, Plus, LogOut, Lock, Eye, EyeOff, Loader, CloudOff } from 'lucide-react';
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbzSdoJ5ZJBbzPsELd_te1cGdx8kVlEeyUGQLXIRm9ePYpbFqe60MUD0eTUFWkTmv7Ko/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbzP_EKScMx6TtdF3gNZNEaKc1lMg3T1mxwLQctljfj-LMP9mI2_rfLquAl7KBqRonh8/exec';
 
 const MASTER = { id: 1, username: 'luizfernandezf@gmail.com', password: 'Luiz3362@*', nome: 'Luiz Fernandez', tipo: 'admin', consultor: '', ativo: true };
 
