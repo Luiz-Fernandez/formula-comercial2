@@ -273,7 +273,32 @@ export default function App() {
       setF(ef); 
     };
     const del = async id => { await svCli(clientes.filter(x => x.id !== id)); };
-    const editar = c => { setF({ ...c, pctFix: (c.pctFix || 0) * 100, pctBonus: (c.pctBonus || 0) * 100, pctCloser: (c.pctCloser || 0) * 100, pctSDR: (c.pctSDR || 0) * 100, pctSocial: (c.pctSocial || 0) * 100, probRen: (c.probRen || 1) * 100, metaFat: c.metaFat || 0, dtPgtoFix: c.dtPgtoFix || '', dtPgtoCom: c.dtPgtoCom || '', fixCloser: c.fixCloser || 0, fixSDR: c.fixSDR || 0, fixSocial: c.fixSocial || 0 }); setEd(c.id); };
+    const editar = c => { 
+      setF({ 
+        ...c, 
+        pctFix: (c.pctFix || 0) * 100, 
+        pctBonus: (c.pctBonus || 0) * 100, 
+        pctCloser: (c.pctCloser || 0) * 100, 
+        pctSDR: (c.pctSDR || 0) * 100, 
+        pctSocial: (c.pctSocial || 0) * 100, 
+        probRen: (c.probRen || 1) * 100, 
+        metaFat: c.metaFat || 0, 
+        dtPgtoFix: c.dtPgtoFix || '', 
+        dtPgtoCom: c.dtPgtoCom || '', 
+        fixCloser: c.fixCloser || 0, 
+        fixSDR: c.fixSDR || 0, 
+        fixSocial: c.fixSocial || 0,
+        valFix: c.valFix || 0,
+        valBonus: c.valBonus || 0,
+        cons: c.cons || '',
+        status: c.status || 'Ativo',
+        inicio: c.inicio || '',
+        renov: c.renov || '',
+        prazo: c.prazo || 12,
+        nps: c.nps || ''
+      }); 
+      setEd(c.id); 
+    };
     const calcR = () => { if (f.inicio && f.prazo) { const d = new Date(f.inicio); d.setMonth(d.getMonth() + parseInt(f.prazo)); setF({ ...f, renov: d.toISOString().slice(0, 10) }); } };
     const fmtFixo = c => { const p = []; if (c.pctFix > 0) p.push(pct(c.pctFix)); if (c.valFix > 0) p.push(fmt(c.valFix)); return p.length ? p.join('+') : '-'; };
     const temTime = c => (c.fixCloser > 0 || c.pctCloser > 0 || c.fixSDR > 0 || c.pctSDR > 0 || c.fixSocial > 0 || c.pctSocial > 0);
