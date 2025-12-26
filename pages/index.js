@@ -101,16 +101,24 @@ export default function App() {
   const calc = l => {
     const cl = clientes.find(c => c.nome === l.cli);
     const co = getC(cl?.cons);
-    const liq = (+l.bruto || 0) * (1 - (+l.taxa || 0));
+    const bruto = +l.bruto || 0;
+    const liq = bruto * (1 - (+l.taxa || 0));
     const part = liq * (+cl?.pctFix || 0) + (+cl?.valFix || 0);
     const metaFat = +cl?.metaFat || 0;
-    const atingiuMeta = metaFat > 0 ? (+l.bruto || 0) >= metaFat : l.meta;
+    const atingiuMeta = metaFat > 0 ? bruto >= metaFat : l.meta;
     const bon = atingiuMeta ? liq * (+cl?.pctBonus || 0) + (+cl?.valBonus || 0) : 0;
     const tot = part + bon;
-    const cus = getCusCli(l.cli);
-    const base = Math.max(0, (+l.pago || 0) - cus);
+    // Custo time comercial
+    const cusCloser = (+cl?.fixCloser || 0) + liq * (+cl?.pctCloser || 0);
+    const cusSDR = (+cl?.fixSDR || 0) + liq * (+cl?.pctSDR || 0);
+    const cusSocial = (+cl?.fixSocial || 0) + liq * (+cl?.pctSocial || 0);
+    const cusTime = cusCloser + cusSDR + cusSocial;
+    const cusOp = getCusCli(l.cli);
+    const cusTot = cusOp + (l.status === 'Recebido' ? cusTime : 0);
+    // Base para comissão = pago - custos operacionais - custo time
+    const base = Math.max(0, (+l.pago || 0) - cusTot);
     const com = l.status === 'Recebido' ? base * (co?.pctCom || 0.2) : 0;
-    return { ...l, liq, part, bon, tot, cus, base, com, cons: cl?.cons || '', atingiuMeta };
+    return { ...l, liq, part, bon, tot, cusOp, cusTime, cusCloser, cusSDR, cusSocial, cusTot, base, com, cons: cl?.cons || '', atingiuMeta };
   };
 
   const resumo = () => {
@@ -197,14 +205,15 @@ export default function App() {
   };
 
   const Clientes = () => {
-    const ef = { nome: '', pctFix: 0, valFix: 0, pctBonus: 0, valBonus: 0, metaFat: 0, cons: '', inicio: '', renov: '', prazo: 12, status: 'Ativo', nps: '', probRen: 100 };
+    const ef = { nome: '', pctFix: 0, valFix: 0, pctBonus: 0, valBonus: 0, metaFat: 0, dtPgtoFix: '', dtPgtoCom: '', fixCloser: 0, pctCloser: 0, fixSDR: 0, pctSDR: 0, fixSocial: 0, pctSocial: 0, cons: '', inicio: '', renov: '', prazo: 12, status: 'Ativo', nps: '', probRen: 100 };
     const [f, setF] = useState(ef); const [ed, setEd] = useState(null);
     const cl = getCli();
-    const salvar = async () => { if (!f.nome) return notify('Nome!'); const dados = { ...f, pctFix: (+f.pctFix || 0) / 100, pctBonus: (+f.pctBonus || 0) / 100, probRen: (+f.probRen || 100) / 100 }; if (ed) { await svCli(clientes.map(c => c.id === ed ? { ...dados, id: ed } : c)); setEd(null); } else await svCli([...clientes, { ...dados, id: Date.now() }]); setF(ef); };
+    const salvar = async () => { if (!f.nome) return notify('Nome!'); const dados = { ...f, pctFix: (+f.pctFix || 0) / 100, pctBonus: (+f.pctBonus || 0) / 100, pctCloser: (+f.pctCloser || 0) / 100, pctSDR: (+f.pctSDR || 0) / 100, pctSocial: (+f.pctSocial || 0) / 100, probRen: (+f.probRen || 100) / 100 }; if (ed) { await svCli(clientes.map(c => c.id === ed ? { ...dados, id: ed } : c)); setEd(null); } else await svCli([...clientes, { ...dados, id: Date.now() }]); setF(ef); };
     const del = async id => { await svCli(clientes.filter(x => x.id !== id)); };
-    const editar = c => { setF({ ...c, pctFix: (c.pctFix || 0) * 100, pctBonus: (c.pctBonus || 0) * 100, probRen: (c.probRen || 1) * 100, metaFat: c.metaFat || 0 }); setEd(c.id); };
+    const editar = c => { setF({ ...c, pctFix: (c.pctFix || 0) * 100, pctBonus: (c.pctBonus || 0) * 100, pctCloser: (c.pctCloser || 0) * 100, pctSDR: (c.pctSDR || 0) * 100, pctSocial: (c.pctSocial || 0) * 100, probRen: (c.probRen || 1) * 100, metaFat: c.metaFat || 0, dtPgtoFix: c.dtPgtoFix || '', dtPgtoCom: c.dtPgtoCom || '', fixCloser: c.fixCloser || 0, fixSDR: c.fixSDR || 0, fixSocial: c.fixSocial || 0 }); setEd(c.id); };
     const calcR = () => { if (f.inicio && f.prazo) { const d = new Date(f.inicio); d.setMonth(d.getMonth() + parseInt(f.prazo)); setF({ ...f, renov: d.toISOString().slice(0, 10) }); } };
     const fmtFixo = c => { const p = []; if (c.pctFix > 0) p.push(pct(c.pctFix)); if (c.valFix > 0) p.push(fmt(c.valFix)); return p.length ? p.join('+') : '-'; };
+    const temTime = c => (c.fixCloser > 0 || c.pctCloser > 0 || c.fixSDR > 0 || c.pctSDR > 0 || c.fixSocial > 0 || c.pctSocial > 0);
 
     if (!canEditAll) return <div style={s.card}><h3 style={s.ttl}>{isCons ? 'Meus Clientes' : 'Clientes'}</h3>{cl.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{cl.map(c => { const sr = statR(c); return <div key={c.id} style={{ padding: 10, background: t.alt, borderRadius: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{c.nome}</span><Badge c={c.status === 'Ativo' ? 'green' : 'gray'}>{c.status}</Badge></div><div style={{ fontSize: 11, color: t.txt2 }}>Fixo: {fmtFixo(c)} • <Badge c={sr.cor}>{sr.l}</Badge></div></div>; })}</div>}</div>;
 
@@ -217,6 +226,18 @@ export default function App() {
           <div><label style={s.lbl}>% Bônus</label><input style={s.inp} type="number" value={f.pctBonus} onChange={e => setF({ ...f, pctBonus: +e.target.value || 0 })} /></div>
           <div><label style={s.lbl}>Bônus R$</label><input style={s.inp} type="number" value={f.valBonus} onChange={e => setF({ ...f, valBonus: +e.target.value || 0 })} /></div>
           <div style={{ gridColumn: 'span 2' }}><label style={s.lbl}>Meta Faturamento R$ (p/ bônus)</label><input style={s.inp} type="number" value={f.metaFat} onChange={e => setF({ ...f, metaFat: +e.target.value || 0 })} placeholder="Ex: 50000" /></div>
+          <div><label style={s.lbl}>Dia Pgto Fixo</label><input style={s.inp} type="number" min="1" max="31" value={f.dtPgtoFix} onChange={e => setF({ ...f, dtPgtoFix: +e.target.value || '' })} placeholder="Ex: 10" /></div>
+          <div><label style={s.lbl}>Dia Pgto Comissão</label><input style={s.inp} type="number" min="1" max="31" value={f.dtPgtoCom} onChange={e => setF({ ...f, dtPgtoCom: +e.target.value || '' })} placeholder="Ex: 15" /></div>
+          
+          <div style={{ gridColumn: 'span 2', borderTop: `1px solid ${t.brd}`, paddingTop: 8, marginTop: 4 }}><label style={{ ...s.lbl, color: t.gold }}>TIME COMERCIAL (custos)</label></div>
+          <div><label style={s.lbl}>Fixo Closer R$</label><input style={s.inp} type="number" value={f.fixCloser} onChange={e => setF({ ...f, fixCloser: +e.target.value || 0 })} /></div>
+          <div><label style={s.lbl}>% Closer</label><input style={s.inp} type="number" value={f.pctCloser} onChange={e => setF({ ...f, pctCloser: +e.target.value || 0 })} /></div>
+          <div><label style={s.lbl}>Fixo SDR R$</label><input style={s.inp} type="number" value={f.fixSDR} onChange={e => setF({ ...f, fixSDR: +e.target.value || 0 })} /></div>
+          <div><label style={s.lbl}>% SDR</label><input style={s.inp} type="number" value={f.pctSDR} onChange={e => setF({ ...f, pctSDR: +e.target.value || 0 })} /></div>
+          <div><label style={s.lbl}>Fixo Social Seller R$</label><input style={s.inp} type="number" value={f.fixSocial} onChange={e => setF({ ...f, fixSocial: +e.target.value || 0 })} /></div>
+          <div><label style={s.lbl}>% Social Seller</label><input style={s.inp} type="number" value={f.pctSocial} onChange={e => setF({ ...f, pctSocial: +e.target.value || 0 })} /></div>
+          
+          <div style={{ gridColumn: 'span 2', borderTop: `1px solid ${t.brd}`, paddingTop: 8, marginTop: 4 }}><label style={{ ...s.lbl, color: t.txt3 }}>CONTRATO</label></div>
           <div><label style={s.lbl}>Consultor</label><select style={s.inp} value={f.cons} onChange={e => setF({ ...f, cons: e.target.value })}><option value="">-</option>{consultores.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div>
           <div><label style={s.lbl}>Status</label><select style={s.inp} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>Ativo</option><option>Inativo</option><option>Cancelado</option></select></div>
           <div><label style={s.lbl}>Início</label><input style={s.inp} type="date" value={f.inicio} onChange={e => setF({ ...f, inicio: e.target.value })} /></div>
@@ -226,7 +247,7 @@ export default function App() {
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 12 }}><button onClick={salvar} disabled={saving} style={s.btn}><Save size={12} />{ed ? 'Salvar' : 'Add'}</button>{ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>Cancelar</button>}</div>
       </div>
-      <div style={s.card}><h3 style={s.ttl}>Clientes ({clientes.length})</h3>{clientes.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{clientes.map(c => { const sr = statR(c); return <div key={c.id} style={{ padding: 10, background: t.alt, borderRadius: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{c.nome}</div><div style={{ fontSize: 10, color: t.txt2 }}>{c.cons || '-'}{c.metaFat > 0 ? ` • Meta: ${fmt(c.metaFat)}` : ''}</div></div><div style={{ display: 'flex', gap: 4 }}><button onClick={() => editar(c)} style={{ background: 'none', border: 'none', color: t.gold, cursor: 'pointer', fontSize: 11 }}>Ed</button><button onClick={() => del(c.id)} style={{ background: 'none', border: 'none', color: t.red, cursor: 'pointer', fontSize: 11 }}>Ex</button></div></div><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}><Badge c={c.status === 'Ativo' ? 'green' : 'gray'}>{c.status}</Badge><Badge c={sr.cor}>{sr.l}</Badge></div></div>; })}</div>}</div>
+      <div style={s.card}><h3 style={s.ttl}>Clientes ({clientes.length})</h3>{clientes.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{clientes.map(c => { const sr = statR(c); return <div key={c.id} style={{ padding: 10, background: t.alt, borderRadius: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{c.nome}</div><div style={{ fontSize: 10, color: t.txt2 }}>{c.cons || '-'}{c.metaFat > 0 ? ` • Meta: ${fmt(c.metaFat)}` : ''}{temTime(c) ? ' • 👥 Time' : ''}</div></div><div style={{ display: 'flex', gap: 4 }}><button onClick={() => editar(c)} style={{ background: 'none', border: 'none', color: t.gold, cursor: 'pointer', fontSize: 11 }}>Ed</button><button onClick={() => del(c.id)} style={{ background: 'none', border: 'none', color: t.red, cursor: 'pointer', fontSize: 11 }}>Ex</button></div></div><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}><Badge c={c.status === 'Ativo' ? 'green' : 'gray'}>{c.status}</Badge><Badge c={sr.cor}>{sr.l}</Badge></div></div>; })}</div>}</div>
     </div>;
   };
 
