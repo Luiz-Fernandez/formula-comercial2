@@ -204,11 +204,74 @@ export default function App() {
     </div>;
   };
 
+  // Função para gerar lançamentos automáticos do contrato
+  const gerarLancamentos = async (cliente, isNovo) => {
+    if (!cliente.inicio || !cliente.prazo) return;
+    
+    const novoLancs = [];
+    const dtInicio = new Date(cliente.inicio + 'T00:00:00');
+    const prazoMeses = parseInt(cliente.prazo) || 12;
+    const valorFixo = +cliente.valFix || 0;
+    const diaPgto = +cliente.dtPgtoFix || 10;
+    
+    for (let i = 0; i < prazoMeses; i++) {
+      const dtMes = new Date(dtInicio.getFullYear(), dtInicio.getMonth() + i, 1);
+      const mesStr = dtMes.toISOString().slice(0, 7);
+      
+      // Verifica se já existe lançamento para este cliente/mês
+      const jaExiste = lancamentos.find(l => l.cli === cliente.nome && l.mes === mesStr);
+      if (jaExiste) continue;
+      
+      // Calcula data de vencimento
+      const diaVenc = Math.min(diaPgto, new Date(dtMes.getFullYear(), dtMes.getMonth() + 1, 0).getDate());
+      const dtVenc = new Date(dtMes.getFullYear(), dtMes.getMonth(), diaVenc);
+      
+      novoLancs.push({
+        id: Date.now() + i,
+        mes: mesStr,
+        cli: cliente.nome,
+        bruto: valorFixo,
+        taxa: 0.05,
+        meta: false,
+        venc: dtVenc.toISOString().slice(0, 10),
+        status: 'A Faturar',
+        pago: 0
+      });
+    }
+    
+    if (novoLancs.length > 0) {
+      await svLanc([...lancamentos, ...novoLancs]);
+      notify(`${novoLancs.length} lançamentos gerados!`);
+    }
+  };
+
   const Clientes = () => {
     const ef = { nome: '', pctFix: 0, valFix: 0, pctBonus: 0, valBonus: 0, metaFat: 0, dtPgtoFix: '', dtPgtoCom: '', fixCloser: 0, pctCloser: 0, fixSDR: 0, pctSDR: 0, fixSocial: 0, pctSocial: 0, cons: '', inicio: '', renov: '', prazo: 12, status: 'Ativo', nps: '', probRen: 100 };
     const [f, setF] = useState(ef); const [ed, setEd] = useState(null);
     const cl = getCli();
-    const salvar = async () => { if (!f.nome) return notify('Nome!'); const dados = { ...f, pctFix: (+f.pctFix || 0) / 100, pctBonus: (+f.pctBonus || 0) / 100, pctCloser: (+f.pctCloser || 0) / 100, pctSDR: (+f.pctSDR || 0) / 100, pctSocial: (+f.pctSocial || 0) / 100, probRen: (+f.probRen || 100) / 100 }; if (ed) { await svCli(clientes.map(c => c.id === ed ? { ...dados, id: ed } : c)); setEd(null); } else await svCli([...clientes, { ...dados, id: Date.now() }]); setF(ef); };
+    const salvar = async () => { 
+      if (!f.nome) return notify('Nome!'); 
+      const dados = { ...f, pctFix: (+f.pctFix || 0) / 100, pctBonus: (+f.pctBonus || 0) / 100, pctCloser: (+f.pctCloser || 0) / 100, pctSDR: (+f.pctSDR || 0) / 100, pctSocial: (+f.pctSocial || 0) / 100, probRen: (+f.probRen || 100) / 100 }; 
+      
+      if (ed) { 
+        await svCli(clientes.map(c => c.id === ed ? { ...dados, id: ed } : c)); 
+        // Se mudou início ou prazo, gera lançamentos faltantes
+        const cliAntigo = clientes.find(c => c.id === ed);
+        if (cliAntigo && (cliAntigo.inicio !== dados.inicio || cliAntigo.prazo !== dados.prazo)) {
+          await gerarLancamentos(dados, false);
+        }
+        setEd(null); 
+      } else { 
+        const novoId = Date.now();
+        const novoCli = { ...dados, id: novoId };
+        await svCli([...clientes, novoCli]); 
+        // Gera lançamentos para cliente novo
+        if (dados.inicio && dados.prazo) {
+          await gerarLancamentos(novoCli, true);
+        }
+      } 
+      setF(ef); 
+    };
     const del = async id => { await svCli(clientes.filter(x => x.id !== id)); };
     const editar = c => { setF({ ...c, pctFix: (c.pctFix || 0) * 100, pctBonus: (c.pctBonus || 0) * 100, pctCloser: (c.pctCloser || 0) * 100, pctSDR: (c.pctSDR || 0) * 100, pctSocial: (c.pctSocial || 0) * 100, probRen: (c.probRen || 1) * 100, metaFat: c.metaFat || 0, dtPgtoFix: c.dtPgtoFix || '', dtPgtoCom: c.dtPgtoCom || '', fixCloser: c.fixCloser || 0, fixSDR: c.fixSDR || 0, fixSocial: c.fixSocial || 0 }); setEd(c.id); };
     const calcR = () => { if (f.inicio && f.prazo) { const d = new Date(f.inicio); d.setMonth(d.getMonth() + parseInt(f.prazo)); setF({ ...f, renov: d.toISOString().slice(0, 10) }); } };
@@ -287,6 +350,44 @@ export default function App() {
   const Performance = () => { const p = perf(); return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{p.map(c => <div key={c.id} style={s.card}><div style={{ marginBottom: 12 }}><h4 style={{ fontSize: 14, fontWeight: 600, color: t.txt }}>{c.nome}</h4><span style={{ fontSize: 11, color: t.txt2 }}>{c.at} ativos</span></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>{[{ l: 'Receita', v: fmt(c.rec) }, { l: 'Comissão', v: fmt(c.com), c: t.pur }, { l: 'Ticket', v: fmt(c.tk) }, { l: 'Ating', v: pct(c.ating), c: c.ating >= 1 ? t.grn : t.gold }].map((x, i) => <div key={i} style={{ padding: 10, background: t.alt, borderRadius: 6, textAlign: 'center' }}><div style={{ fontSize: 14, fontWeight: 700, color: x.c || t.txt }}>{x.v}</div><div style={{ fontSize: 9, color: t.txt3 }}>{x.l}</div></div>)}</div></div>)}</div>; };
 
   const Ranking = () => { const r = rank(); return <div style={s.card}><h3 style={s.ttl}>Ranking</h3>{r.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{r.map((c, i) => <div key={c.id} style={{ padding: 10, background: t.alt, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontWeight: 700, color: i < 3 ? t.gold : t.txt3, fontSize: 16 }}>{i + 1}º</span><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{c.nome}</div><Badge c={c.risco === 'Alto' ? 'red' : c.risco === 'Médio' ? 'orange' : 'green'}>{c.risco}</Badge></div></div><div style={{ fontWeight: 700, color: t.txt }}>{fmt(c.rec)}</div></div>)}</div>}</div>; };
+
+  const Metas = () => { const [f, setF] = useState({ cons: 'GERAL', mes, val: 0 }); const salvar = async () => { const ex = metas.findIndex(m => m.cons === f.cons && m.mes === f.mes); if (ex >= 0) await svMet(metas.map((m, i) => i === ex ? { ...f, id: m.id } : m)); else await svMet([...metas, { ...f, id: Date.now() }]); setF({ cons: 'GERAL', mes, val: 0 }); }; const r = resumo(); const mg = metas.find(m => m.cons === 'GERAL' && m.mes === mes); const at = mg?.val > 0 ? r.rec / mg.val : 0; return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}><div style={s.card}><h3 style={s.ttl}>Definir Meta</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}><div><label style={s.lbl}>Consultor</label><select style={s.inp} value={f.cons} onChange={e => setF({ ...f, cons: e.target.value })}><option value="GERAL">Geral</option>{consultores.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div><div><label style={s.lbl}>Valor R$</label><input style={s.inp} type="number" value={f.val} onChange={e => setF({ ...f, val: +e.target.value || 0 })} /></div></div><button onClick={salvar} disabled={saving} style={{ ...s.btn, marginTop: 10 }}>Salvar</button></div><div style={s.card}><h3 style={s.ttl}>Meta x Real</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>{[{ l: 'Meta', v: fmt(mg?.val || 0) }, { l: 'Real', v: fmt(r.rec), c: t.grn }, { l: 'Ating', v: pct(at), c: at >= 1 ? t.grn : t.gold }].map((x, i) => <div key={i} style={{ textAlign: 'center' }}><div style={{ fontSize: 9, color: t.txt3 }}>{x.l}</div><div style={{ fontSize: 16, fontWeight: 700, color: x.c || t.txt }}>{x.v}</div></div>)}</div>{mg?.val > 0 && <div style={{ height: 8, background: t.alt, borderRadius: 4 }}><div style={{ height: '100%', width: `${Math.min(at * 100, 100)}%`, background: at >= 1 ? t.grn : t.gold, borderRadius: 4 }} /></div>}</div></div>; };
+
+  const Relatorio = () => { const r = resumo(); const cm = comCons(); const res = r.rec - r.cust - r.com; return <div style={{ maxWidth: 500, margin: '0 auto' }}><div style={{ ...s.card, textAlign: 'center', marginBottom: 14 }}><Logo /><h2 style={{ ...s.ttl, fontSize: 16, marginTop: 14 }}>Relatório {mes}</h2></div><div style={{ ...s.card, marginBottom: 14 }}><h3 style={{ fontSize: 13, fontWeight: 600, color: t.txt, marginBottom: 10 }}>Receitas</h3>{[['A Rec', r.aRec], ['Recebido', r.rec, t.grn], ['Vencido', r.venc, t.red]].map(([l, v, c]) => <div key={l} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span style={{ color: t.txt2, fontSize: 12 }}>{l}</span><span style={{ fontWeight: 600, color: c || t.txt, fontSize: 12 }}>{fmt(v)}</span></div>)}</div><div style={{ ...s.card, marginBottom: 14 }}><h3 style={{ fontSize: 13, fontWeight: 600, color: t.txt, marginBottom: 10 }}>Comissões</h3>{cm.map(c => <div key={c.nome} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span style={{ color: t.txt2, fontSize: 12 }}>{c.nome}</span><span style={{ fontWeight: 600, color: t.pur, fontSize: 12 }}>{fmt(c.com)}</span></div>)}</div><div style={{ ...s.card, background: t.alt }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><span style={{ fontWeight: 700, color: t.txt }}>Resultado</span><span style={{ fontSize: 20, fontWeight: 700, color: res >= 0 ? t.grn : t.red }}>{fmt(res)}</span></div></div></div>; };
+
+  const Usuarios = () => {
+    if (!isAdm) return <div style={s.card}><p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Restrito</p></div>;
+    const ef = { username: '', password: '', nome: '', tipo: 'consultor', consultor: '', ativo: true };
+    const [f, setF] = useState(ef); const [ed, setEd] = useState(null);
+    const salvar = async () => { if (!f.username || !f.password || !f.nome) return notify('Preencha!'); if (ed) { await svUsers(users.map(u => u.id === ed ? { ...f, id: ed } : u)); setEd(null); } else await svUsers([...users, { ...f, id: Date.now() }]); setF(ef); };
+    const del = async id => { if (id === 1) return notify('Master!'); await svUsers(users.filter(x => x.id !== id)); };
+    return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={s.card}><h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'} Usuário</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}><div><label style={s.lbl}>Login *</label><input style={s.inp} value={f.username} onChange={e => setF({ ...f, username: e.target.value })} /></div><div><label style={s.lbl}>Senha *</label><input style={s.inp} type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></div><div><label style={s.lbl}>Nome *</label><input style={s.inp} value={f.nome} onChange={e => setF({ ...f, nome: e.target.value })} /></div><div><label style={s.lbl}>Tipo</label><select style={s.inp} value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="admin">Admin</option><option value="financeiro">Financeiro</option><option value="consultor">Consultor</option></select></div><div><label style={s.lbl}>Consultor</label><select style={s.inp} value={f.consultor} onChange={e => setF({ ...f, consultor: e.target.value })}><option value="">-</option>{consultores.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div><div><label style={s.lbl}>Ativo</label><select style={s.inp} value={f.ativo ? 'sim' : 'nao'} onChange={e => setF({ ...f, ativo: e.target.value === 'sim' })}><option value="sim">Sim</option><option value="nao">Não</option></select></div></div><div style={{ display: 'flex', gap: 6, marginTop: 12 }}><button onClick={salvar} disabled={saving} style={s.btn}><Save size={12} />{ed ? 'Salvar' : 'Add'}</button>{ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>Cancelar</button>}</div></div>
+      <div style={s.card}><h3 style={s.ttl}>Usuários</h3>{users.map(u => <div key={u.id} style={{ padding: 10, background: t.alt, borderRadius: 8, marginBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{u.nome}</div><div style={{ fontSize: 10, color: t.txt2 }}>{u.username}</div></div><div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Badge c={u.tipo === 'admin' ? 'purple' : 'gray'}>{u.tipo}</Badge>{u.id !== 1 && <><button onClick={() => { setF(u); setEd(u.id); }} style={{ background: 'none', border: 'none', color: t.gold, cursor: 'pointer', fontSize: 11 }}>Ed</button><button onClick={() => del(u.id)} style={{ background: 'none', border: 'none', color: t.red, cursor: 'pointer', fontSize: 11 }}>Ex</button></>}</div></div>)}</div>
+    </div>;
+  };
+
+  if (loading) return <div style={{ minHeight: '100vh', background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}><Logo /><Loader size={24} color={t.gold} className="spin" /></div>;
+
+  const C = { dashboard: Dashboard, consultores: Consultores, clientes: Clientes, custos: Custos, lancamentos: Lancamentos, comissoes: Comissoes, tarefas: Tarefas, cobranca: Cobranca, projecao: Projecao, performance: Performance, ranking: Ranking, metas: Metas, relatorio: Relatorio, usuarios: Usuarios }[tab] || Dashboard;
+
+  return <div style={{ minHeight: '100vh', background: t.bg }}>
+    <Sidebar />
+    <Toast />
+    <header style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 50, background: t.card, borderBottom: `1px solid ${t.brd}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', zIndex: 30 }}>
+      <button onClick={() => setSb(!sb)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}><Menu size={20} color={t.txt} /></button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{saving && <Loader size={14} color={t.org} className="spin" />}{!online && <CloudOff size={14} color={t.red} />}<Logo /></div>
+      <button onClick={() => setDark(!dark)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6 }}>{dark ? <Sun size={18} color={t.txt} /> : <Moon size={18} color={t.txt} />}</button>
+    </header>
+    {sb && <div onClick={() => setSb(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 40 }} />}
+    <main style={{ paddingTop: 58, minHeight: '100vh' }}><div style={{ padding: 12, maxWidth: 600, margin: '0 auto' }}><C /></div></main>
+  </div>;
+}
+2} fill="url(#pg)" /></AreaChart></ResponsiveContainer></div>; };
+
+  const Performance = () => { const p = perf(); return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{p.map(c => <div key={c.id} style={s.card}><div style={{ marginBottom: 12 }}><h4 style={{ fontSize: 14, fontWeight: 600, color: t.txt }}>{c.nome}</h4><span style={{ fontSize: 11, color: t.txt2 }}>{c.at} ativos</span></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>{[{ l: 'Receita', v: fmt(c.rec) }, { l: 'Comissão', v: fmt(c.com), c: t.pur }, { l: 'Ticket', v: fmt(c.tk) }, { l: 'Ating', v: pct(c.ating), c: c.ating >= 1 ? t.grn : t.gold }].map((x, i) => <div key={i} style={{ padding: 10, background: t.alt, borderRadius: 6, textAlign: 'center' }}><div style={{ fontSize: 14, fontWeight: 700, color: x.c || t.txt }}>{x.v}</div><div style={{ fontSize: 9, color: t.txt3 }}>{x.l}</div></div>)}</div></div>)}</div>; };
+
+  const Ranking = () => { const r = rank(); return <div style={s.card}><h3 style={s.ttl}>Ranking</h3>{r.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{r.map((c, i) => <div key={c.id} onClick={() => setCliDetalhe(c.id)} style={{ padding: 10, background: t.alt, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontWeight: 700, color: i < 3 ? t.gold : t.txt3, fontSize: 16 }}>{i + 1}º</span><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{c.nome}</div><Badge c={c.risco === 'Alto' ? 'red' : c.risco === 'Médio' ? 'orange' : 'green'}>{c.risco}</Badge></div></div><div style={{ fontWeight: 700, color: t.txt }}>{fmt(c.rec)}</div></div>)}</div>}</div>; };
 
   const Metas = () => { const [f, setF] = useState({ cons: 'GERAL', mes, val: 0 }); const salvar = async () => { const ex = metas.findIndex(m => m.cons === f.cons && m.mes === f.mes); if (ex >= 0) await svMet(metas.map((m, i) => i === ex ? { ...f, id: m.id } : m)); else await svMet([...metas, { ...f, id: Date.now() }]); setF({ cons: 'GERAL', mes, val: 0 }); }; const r = resumo(); const mg = metas.find(m => m.cons === 'GERAL' && m.mes === mes); const at = mg?.val > 0 ? r.rec / mg.val : 0; return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}><div style={s.card}><h3 style={s.ttl}>Definir Meta</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}><div><label style={s.lbl}>Consultor</label><select style={s.inp} value={f.cons} onChange={e => setF({ ...f, cons: e.target.value })}><option value="GERAL">Geral</option>{consultores.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div><div><label style={s.lbl}>Valor R$</label><input style={s.inp} type="number" value={f.val} onChange={e => setF({ ...f, val: +e.target.value || 0 })} /></div></div><button onClick={salvar} disabled={saving} style={{ ...s.btn, marginTop: 10 }}>Salvar</button></div><div style={s.card}><h3 style={s.ttl}>Meta x Real</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>{[{ l: 'Meta', v: fmt(mg?.val || 0) }, { l: 'Real', v: fmt(r.rec), c: t.grn }, { l: 'Ating', v: pct(at), c: at >= 1 ? t.grn : t.gold }].map((x, i) => <div key={i} style={{ textAlign: 'center' }}><div style={{ fontSize: 9, color: t.txt3 }}>{x.l}</div><div style={{ fontSize: 16, fontWeight: 700, color: x.c || t.txt }}>{x.v}</div></div>)}</div>{mg?.val > 0 && <div style={{ height: 8, background: t.alt, borderRadius: 4 }}><div style={{ height: '100%', width: `${Math.min(at * 100, 100)}%`, background: at >= 1 ? t.grn : t.gold, borderRadius: 4 }} /></div>}</div></div>; };
 
