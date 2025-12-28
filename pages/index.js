@@ -172,6 +172,7 @@ export default function App() {
     if (!cliente.inicio || !cliente.prazo) return [];
     const novoLancs: any[] = [];
     const dtInicio = new Date(cliente.inicio + 'T00:00:00');
+    if (isNaN(dtInicio.getTime())) return []; // Valida se a data é válida
     const prazoMeses = parseInt(cliente.prazo) || 12;
     const valorFixo = +cliente.valFix || 0;
     const diaPgto = +cliente.dtPgtoFix || 10;
