@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+impimport React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Save, Download, Users, DollarSign, TrendingUp, AlertCircle, CheckCircle, Clock, Calendar, FileText, Bell, RefreshCw, Moon, Sun, Menu, Target, Star, ClipboardList, UserCheck, Award, ChevronRight, ChevronDown, LogOut, Lock, Eye, EyeOff, Loader, CloudOff, X, Home, Phone, Mail, BarChart3 } from 'lucide-react';
 
@@ -285,6 +286,10 @@ export default function App() {
         {notifs.slice(0, 4).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.txt2, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: (t as any)[n.cor], flexShrink: 0 }} />{n.msg}</div>)}
       </div>}
       <nav style={{ flex: 1, padding: 12, overflowY: 'auto' }}>{menu.map(g => <div key={g.sc} style={{ marginBottom: 8 }}>{g.l && <button onClick={() => setExp({ ...exp, [g.sc]: !exp[g.sc] })} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'none', border: 'none', color: t.txt3, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer', letterSpacing: 0.5 }}>{g.l}{exp[g.sc] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>}{(g.sc === 'm' || exp[g.sc]) && g.it.map(i => <button key={i.id} onClick={() => navTo(i.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: tab === i.id ? t.goldBg : 'transparent', border: 'none', borderRadius: 8, color: tab === i.id ? t.gold : t.txt2, fontSize: 13, fontWeight: tab === i.id ? 600 : 400, cursor: 'pointer', marginBottom: 4, transition: 'all .2s' }}><i.ic size={16} />{i.l}</button>)}</div>)}</nav>
+      <div style={{ padding: 8, borderTop: `1px solid ${t.brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: online ? t.grnBg : t.redBg }}>
+        {online ? <CheckCircle size={14} color={t.grn} /> : <CloudOff size={14} color={t.red} />}
+        <span style={{ fontSize: 11, fontWeight: 600, color: online ? t.grn : t.red }}>{online ? 'Conectado ao Google Sheets' : 'Offline - Sem conexão'}</span>
+      </div>
       <div style={{ padding: 12, borderTop: `1px solid ${t.brd}`, display: 'flex', gap: 6 }}>
         <button onClick={() => setDark(!dark)} style={{ padding: 10, background: t.alt, border: 'none', borderRadius: 8, cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{dark ? <Sun size={16} color={t.txt} /> : <Moon size={16} color={t.txt} />}</button>
         <button onClick={loadData} style={{ padding: 10, background: t.alt, border: 'none', borderRadius: 8, cursor: 'pointer' }}><RefreshCw size={16} color={t.txt} /></button>
@@ -416,8 +421,13 @@ export default function App() {
           <div style={{ display: 'grid', gap: 10 }}>
             {lm.map(l => {
               const taxaAtual = (l.taxa || 0) * 100;
-              const atualizarTaxa = async (novaTaxa: number) => {
-                await svLanc(lancamentos.map(x => x.id === l.id ? { ...x, taxa: novaTaxa / 100 } : x));
+              const inputId = `taxa-${l.id}`;
+              const salvarTaxa = async () => {
+                const input = document.getElementById(inputId) as HTMLInputElement;
+                const novaTaxa = +input?.value || 0;
+                if (novaTaxa !== taxaAtual) {
+                  await svLanc(lancamentos.map(x => x.id === l.id ? { ...x, taxa: novaTaxa / 100 } : x));
+                }
               };
               return (
                 <div key={l.id} style={{ padding: 14, background: t.alt, borderRadius: 10 }}>
@@ -428,11 +438,16 @@ export default function App() {
                         Bruto: {fmt(l.bruto)} 
                         <span style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                           (<input 
+                            id={inputId}
                             type="number" 
-                            value={taxaAtual} 
-                            onChange={e => atualizarTaxa(+e.target.value || 0)}
+                            defaultValue={taxaAtual} 
                             style={{ width: 40, padding: '2px 4px', border: `1px solid ${t.brd}`, borderRadius: 4, fontSize: 12, textAlign: 'center', background: t.card }}
-                          />% taxa)
+                          />% taxa
+                          <button 
+                            onClick={salvarTaxa} 
+                            disabled={saving}
+                            style={{ padding: '2px 6px', background: t.grn, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, cursor: 'pointer' }}
+                          >✓</button>)
                         </span>
                         → {fmt(l.tot)}{l.atingiuMeta && ' ★'}
                       </div>
