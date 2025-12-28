@@ -193,20 +193,75 @@ export default function App() {
   };
 
   const Consultores = () => {
-    if (!canEditAll) return <div style={s.card}><p style={{ color: t.txt3, textAlign: 'center', padding: 20 }}>Restrito</p></div>;
+    if (!canEditAll) return <div style={s.card}><p style={{ color: t.txt3, textAlign: 'center', padding: 20 }}>🔒 Acesso restrito a administradores</p></div>;
     const [f, setF] = useState({ nome: '', pctCom: 20, email: '', tel: '' }); const [ed, setEd] = useState(null);
-    const salvar = async () => { if (!f.nome) return notify('Nome!'); const dados = { ...f, pctCom: (+f.pctCom || 0) / 100 }; if (ed) { await svCons(consultores.map(c => c.id === ed ? { ...dados, id: ed } : c)); setEd(null); } else await svCons([...consultores, { ...dados, id: Date.now() }]); setF({ nome: '', pctCom: 20, email: '', tel: '' }); };
-    const del = async id => { await svCons(consultores.filter(x => x.id !== id)); };
+    const salvar = async () => { if (!f.nome) return notify('Preencha o nome!'); const dados = { ...f, pctCom: (+f.pctCom || 0) / 100 }; if (ed) { await svCons(consultores.map(c => c.id === ed ? { ...dados, id: ed } : c)); setEd(null); } else await svCons([...consultores, { ...dados, id: Date.now() }]); setF({ nome: '', pctCom: 20, email: '', tel: '' }); };
+    const del = async id => { if(!confirm('Tem certeza que deseja excluir este consultor?')) return; await svCons(consultores.filter(x => x.id !== id)); };
     const editar = c => { setF({ nome: c.nome, pctCom: (c.pctCom || 0.2) * 100, email: c.email || '', tel: c.tel || '' }); setEd(c.id); };
     return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={s.card}><h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'} Consultor</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}><div><label style={s.lbl}>Nome *</label><input style={s.inp} value={f.nome} onChange={e => setF({ ...f, nome: e.target.value })} /></div><div><label style={s.lbl}>% Comissão</label><input style={s.inp} type="number" value={f.pctCom} onChange={e => setF({ ...f, pctCom: +e.target.value || 0 })} /></div><div><label style={s.lbl}>E-mail</label><input style={s.inp} value={f.email} onChange={e => setF({ ...f, email: e.target.value })} /></div><div><label style={s.lbl}>Telefone</label><input style={s.inp} value={f.tel} onChange={e => setF({ ...f, tel: e.target.value })} /></div></div><div style={{ display: 'flex', gap: 6, marginTop: 12 }}><button onClick={salvar} disabled={saving} style={s.btn}><Save size={12} />{ed ? 'Salvar' : 'Add'}</button>{ed && <button onClick={() => { setEd(null); setF({ nome: '', pctCom: 20, email: '', tel: '' }); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>Cancelar</button>}</div></div>
-      <div style={s.card}><h3 style={s.ttl}>Consultores ({consultores.length})</h3>{consultores.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{consultores.map(c => <div key={c.id} style={{ padding: 10, background: t.alt, borderRadius: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{c.nome}</div><div style={{ fontSize: 11, color: t.pur, fontWeight: 500 }}>{pct(c.pctCom)} • {clientes.filter(x => x.cons === c.nome).length} cli</div>{c.email && <div style={{ fontSize: 10, color: t.txt3, marginTop: 2 }}>{c.email}</div>}</div><div style={{ display: 'flex', gap: 4 }}><button onClick={() => editar(c)} style={{ background: t.goldBg, border: 'none', color: t.gold, padding: '4px 8px', borderRadius: 4, fontSize: 11, cursor: 'pointer' }}>Ed</button><button onClick={() => del(c.id)} style={{ background: t.redBg, border: 'none', color: t.red, padding: '4px 8px', borderRadius: 4, fontSize: 11, cursor: 'pointer' }}>Ex</button></div></div></div>)}</div>}</div>
+      <div style={s.card}>
+        <h3 style={s.ttl}>{ed ? '✏️ Editar Consultor' : '➕ Novo Consultor'}</h3>
+        <div style={{ fontSize: 11, color: t.txt3, marginBottom: 12 }}>Cadastre os consultores que gerenciam seus clientes</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          <div>
+            <label style={s.lbl}>Nome Completo *</label>
+            <input style={s.inp} value={f.nome} onChange={e => setF({ ...f, nome: e.target.value })} placeholder="Ex: João Silva" />
+          </div>
+          <div>
+            <label style={s.lbl}>% Comissão</label>
+            <input style={s.inp} type="number" value={f.pctCom} onChange={e => setF({ ...f, pctCom: +e.target.value || 0 })} placeholder="20" />
+            <span style={{ fontSize: 9, color: t.txt3 }}>Percentual sobre recebimentos</span>
+          </div>
+          <div>
+            <label style={s.lbl}>E-mail</label>
+            <input style={s.inp} type="email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} placeholder="joao@email.com" />
+          </div>
+          <div>
+            <label style={s.lbl}>Telefone</label>
+            <input style={s.inp} value={f.tel} onChange={e => setF({ ...f, tel: e.target.value })} placeholder="(11) 99999-9999" />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <button onClick={salvar} disabled={saving} style={{ ...s.btn, background: t.gold, color: '#fff' }}>
+            <Save size={14} />{ed ? 'Salvar Alterações' : 'Cadastrar Consultor'}
+          </button>
+          {ed && <button onClick={() => { setEd(null); setF({ nome: '', pctCom: 20, email: '', tel: '' }); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>
+            <X size={14} />Cancelar
+          </button>}
+        </div>
+      </div>
+      <div style={s.card}>
+        <h3 style={s.ttl}>👥 Consultores Cadastrados ({consultores.length})</h3>
+        {consultores.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum consultor cadastrado ainda</p> : 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {consultores.map(c => <div key={c.id} style={{ padding: 12, background: t.alt, borderRadius: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontWeight: 600, color: t.txt, fontSize: 14 }}>{c.nome}</div>
+                <div style={{ fontSize: 11, color: t.pur, fontWeight: 500, marginTop: 2 }}>
+                  💰 {pct(c.pctCom)} de comissão • 👥 {clientes.filter(x => x.cons === c.nome).length} clientes
+                </div>
+                {c.email && <div style={{ fontSize: 10, color: t.txt3, marginTop: 4 }}>📧 {c.email}</div>}
+                {c.tel && <div style={{ fontSize: 10, color: t.txt3 }}>📱 {c.tel}</div>}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => editar(c)} style={{ ...s.btn, padding: '4px 10px', fontSize: 11, background: t.goldBg, color: t.gold }}>
+                  ✏️ Editar
+                </button>
+                <button onClick={() => del(c.id)} style={{ ...s.btn, padding: '4px 10px', fontSize: 11, background: t.redBg, color: t.red }}>
+                  🗑️
+                </button>
+              </div>
+            </div>
+          </div>)}
+        </div>}
+      </div>
     </div>;
   };
 
   // Função para gerar lançamentos automáticos do contrato
   const gerarLancamentos = async (cliente, isNovo) => {
-    if (!cliente.inicio || !cliente.prazo) return;
+    if (!cliente.inicio || !cliente.prazo) return 0;
     
     const novoLancs = [];
     const dtInicio = new Date(cliente.inicio + 'T00:00:00');
@@ -227,7 +282,7 @@ export default function App() {
       const dtVenc = new Date(dtMes.getFullYear(), dtMes.getMonth(), diaVenc);
       
       novoLancs.push({
-        id: Date.now() + i,
+        id: Date.now() + Math.random() * 10000 + i,
         mes: mesStr,
         cli: cliente.nome,
         bruto: valorFixo,
@@ -239,9 +294,30 @@ export default function App() {
       });
     }
     
-    if (novoLancs.length > 0) {
-      await svLanc([...lancamentos, ...novoLancs]);
-      notify(`${novoLancs.length} lançamentos gerados!`);
+    return novoLancs;
+  };
+
+  // Função para gerar lançamentos de TODOS os clientes ativos
+  const gerarTodosLancamentos = async () => {
+    const clientesAtivos = clientes.filter(c => c.status === 'Ativo' && c.inicio && c.prazo);
+    if (clientesAtivos.length === 0) {
+      notify('Nenhum cliente ativo com contrato!');
+      return;
+    }
+    
+    let todosNovos = [];
+    for (const cli of clientesAtivos) {
+      const novos = await gerarLancamentos(cli, false);
+      if (novos && novos.length > 0) {
+        todosNovos = [...todosNovos, ...novos];
+      }
+    }
+    
+    if (todosNovos.length > 0) {
+      await svLanc([...lancamentos, ...todosNovos]);
+      notify(`${todosNovos.length} lançamentos gerados!`);
+    } else {
+      notify('Todos lançamentos já existem!');
     }
   };
 
@@ -272,7 +348,7 @@ export default function App() {
       } 
       setF(ef); 
     };
-    const del = async id => { await svCli(clientes.filter(x => x.id !== id)); };
+    const del = async id => { if(!confirm('Tem certeza que deseja excluir este cliente? Os lançamentos vinculados não serão excluídos.')) return; await svCli(clientes.filter(x => x.id !== id)); };
     const editar = c => { 
       setF({ 
         ...c, 
@@ -305,48 +381,291 @@ export default function App() {
 
     if (!canEditAll) return <div style={s.card}><h3 style={s.ttl}>{isCons ? 'Meus Clientes' : 'Clientes'}</h3>{cl.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{cl.map(c => { const sr = statR(c); return <div key={c.id} style={{ padding: 10, background: t.alt, borderRadius: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{c.nome}</span><Badge c={c.status === 'Ativo' ? 'green' : 'gray'}>{c.status}</Badge></div><div style={{ fontSize: 11, color: t.txt2 }}>Fixo: {fmtFixo(c)} • <Badge c={sr.cor}>{sr.l}</Badge></div></div>; })}</div>}</div>;
 
+    // Componente de dica
+    const Dica = ({ texto }) => <span style={{ fontSize: 9, color: t.txt3, fontWeight: 400, display: 'block', marginTop: 2 }}>{texto}</span>;
+
     return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={s.card}><h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'} Cliente</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-          <div style={{ gridColumn: 'span 2' }}><label style={s.lbl}>Nome *</label><input style={s.inp} value={f.nome} onChange={e => setF({ ...f, nome: e.target.value })} /></div>
-          <div><label style={s.lbl}>% Fixo</label><input style={s.inp} type="number" value={f.pctFix} onChange={e => setF({ ...f, pctFix: +e.target.value || 0 })} /></div>
-          <div><label style={s.lbl}>Fixo R$</label><input style={s.inp} type="number" value={f.valFix} onChange={e => setF({ ...f, valFix: +e.target.value || 0 })} /></div>
-          <div><label style={s.lbl}>% Bônus</label><input style={s.inp} type="number" value={f.pctBonus} onChange={e => setF({ ...f, pctBonus: +e.target.value || 0 })} /></div>
-          <div><label style={s.lbl}>Bônus R$</label><input style={s.inp} type="number" value={f.valBonus} onChange={e => setF({ ...f, valBonus: +e.target.value || 0 })} /></div>
-          <div style={{ gridColumn: 'span 2' }}><label style={s.lbl}>Meta Faturamento R$ (p/ bônus)</label><input style={s.inp} type="number" value={f.metaFat} onChange={e => setF({ ...f, metaFat: +e.target.value || 0 })} placeholder="Ex: 50000" /></div>
-          <div><label style={s.lbl}>Dia Pgto Fixo</label><input style={s.inp} type="number" min="1" max="31" value={f.dtPgtoFix} onChange={e => setF({ ...f, dtPgtoFix: +e.target.value || '' })} placeholder="Ex: 10" /></div>
-          <div><label style={s.lbl}>Dia Pgto Comissão</label><input style={s.inp} type="number" min="1" max="31" value={f.dtPgtoCom} onChange={e => setF({ ...f, dtPgtoCom: +e.target.value || '' })} placeholder="Ex: 15" /></div>
-          
-          <div style={{ gridColumn: 'span 2', borderTop: `1px solid ${t.brd}`, paddingTop: 8, marginTop: 4 }}><label style={{ ...s.lbl, color: t.gold }}>TIME COMERCIAL (custos)</label></div>
-          <div><label style={s.lbl}>Fixo Closer R$</label><input style={s.inp} type="number" value={f.fixCloser} onChange={e => setF({ ...f, fixCloser: +e.target.value || 0 })} /></div>
-          <div><label style={s.lbl}>% Closer</label><input style={s.inp} type="number" value={f.pctCloser} onChange={e => setF({ ...f, pctCloser: +e.target.value || 0 })} /></div>
-          <div><label style={s.lbl}>Fixo SDR R$</label><input style={s.inp} type="number" value={f.fixSDR} onChange={e => setF({ ...f, fixSDR: +e.target.value || 0 })} /></div>
-          <div><label style={s.lbl}>% SDR</label><input style={s.inp} type="number" value={f.pctSDR} onChange={e => setF({ ...f, pctSDR: +e.target.value || 0 })} /></div>
-          <div><label style={s.lbl}>Fixo Social Seller R$</label><input style={s.inp} type="number" value={f.fixSocial} onChange={e => setF({ ...f, fixSocial: +e.target.value || 0 })} /></div>
-          <div><label style={s.lbl}>% Social Seller</label><input style={s.inp} type="number" value={f.pctSocial} onChange={e => setF({ ...f, pctSocial: +e.target.value || 0 })} /></div>
-          
-          <div style={{ gridColumn: 'span 2', borderTop: `1px solid ${t.brd}`, paddingTop: 8, marginTop: 4 }}><label style={{ ...s.lbl, color: t.txt3 }}>CONTRATO</label></div>
-          <div><label style={s.lbl}>Consultor</label><select style={s.inp} value={f.cons} onChange={e => setF({ ...f, cons: e.target.value })}><option value="">-</option>{consultores.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div>
-          <div><label style={s.lbl}>Status</label><select style={s.inp} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>Ativo</option><option>Inativo</option><option>Cancelado</option></select></div>
-          <div><label style={s.lbl}>Início</label><input style={s.inp} type="date" value={f.inicio} onChange={e => { const novoInicio = e.target.value; if (novoInicio && f.prazo) { const d = new Date(novoInicio); d.setMonth(d.getMonth() + parseInt(f.prazo)); setF({ ...f, inicio: novoInicio, renov: d.toISOString().slice(0, 10) }); } else { setF({ ...f, inicio: novoInicio }); }}} /></div>
-          <div><label style={s.lbl}>Prazo (meses)</label><input style={s.inp} type="number" value={f.prazo} onChange={e => { const novoPrazo = +e.target.value || 12; if (f.inicio && novoPrazo) { const d = new Date(f.inicio); d.setMonth(d.getMonth() + novoPrazo); setF({ ...f, prazo: novoPrazo, renov: d.toISOString().slice(0, 10) }); } else { setF({ ...f, prazo: novoPrazo }); }}} /></div>
-          <div><label style={s.lbl}>Renovação</label><input style={s.inp} type="date" value={f.renov} readOnly style={{ ...s.inp, background: t.alt, cursor: 'not-allowed' }} /></div>
-          <div><label style={s.lbl}>NPS</label><input style={s.inp} type="number" min="0" max="10" value={f.nps} onChange={e => setF({ ...f, nps: +e.target.value || '' })} /></div>
+      <div style={s.card}>
+        <h3 style={s.ttl}>{ed ? '✏️ Editar Cliente' : '➕ Novo Cliente'}</h3>
+        
+        {/* Nome */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={s.lbl}>Nome do Cliente *</label>
+          <input style={s.inp} value={f.nome} onChange={e => setF({ ...f, nome: e.target.value })} placeholder="Ex: Empresa ABC Ltda" />
         </div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 12 }}><button onClick={salvar} disabled={saving} style={s.btn}><Save size={12} />{ed ? 'Salvar' : 'Add'}</button>{ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>Cancelar</button>}</div>
+        
+        {/* Seção: Participação */}
+        <div style={{ background: t.alt, padding: 12, borderRadius: 8, marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.gold, marginBottom: 4 }}>💰 SUA PARTICIPAÇÃO</div>
+          <div style={{ fontSize: 10, color: t.txt3, marginBottom: 10 }}>Quanto você recebe deste cliente todo mês</div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <div>
+              <label style={s.lbl}>% sobre Faturamento</label>
+              <input style={s.inp} type="number" value={f.pctFix} onChange={e => setF({ ...f, pctFix: +e.target.value || 0 })} placeholder="Ex: 10" />
+              <Dica texto="Percentual fixo mensal" />
+            </div>
+            <div>
+              <label style={s.lbl}>Valor Fixo Mensal (R$)</label>
+              <input style={s.inp} type="number" value={f.valFix} onChange={e => setF({ ...f, valFix: +e.target.value || 0 })} placeholder="Ex: 3000" />
+              <Dica texto="Valor garantido todo mês" />
+            </div>
+            <div>
+              <label style={s.lbl}>% Bônus (se bater meta)</label>
+              <input style={s.inp} type="number" value={f.pctBonus} onChange={e => setF({ ...f, pctBonus: +e.target.value || 0 })} placeholder="Ex: 5" />
+              <Dica texto="Adicional se atingir meta" />
+            </div>
+            <div>
+              <label style={s.lbl}>Bônus Fixo (R$)</label>
+              <input style={s.inp} type="number" value={f.valBonus} onChange={e => setF({ ...f, valBonus: +e.target.value || 0 })} placeholder="Ex: 500" />
+              <Dica texto="Valor extra se bater meta" />
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={s.lbl}>Meta de Faturamento do Cliente (R$)</label>
+              <input style={s.inp} type="number" value={f.metaFat} onChange={e => setF({ ...f, metaFat: +e.target.value || 0 })} placeholder="Ex: 50000" />
+              <Dica texto="Se o cliente faturar acima deste valor, você ganha o bônus" />
+            </div>
+          </div>
+        </div>
+        
+        {/* Seção: Datas de Pagamento */}
+        <div style={{ background: t.alt, padding: 12, borderRadius: 8, marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.txt, marginBottom: 4 }}>📅 DATAS DE PAGAMENTO</div>
+          <div style={{ fontSize: 10, color: t.txt3, marginBottom: 10 }}>Quando o cliente paga você</div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <div>
+              <label style={s.lbl}>Dia do Pgto Fixo</label>
+              <input style={s.inp} type="number" min="1" max="31" value={f.dtPgtoFix} onChange={e => setF({ ...f, dtPgtoFix: +e.target.value || '' })} placeholder="Ex: 10" />
+              <Dica texto="Dia do mês (1-31)" />
+            </div>
+            <div>
+              <label style={s.lbl}>Dia do Pgto Comissão</label>
+              <input style={s.inp} type="number" min="1" max="31" value={f.dtPgtoCom} onChange={e => setF({ ...f, dtPgtoCom: +e.target.value || '' })} placeholder="Ex: 15" />
+              <Dica texto="Dia do mês (1-31)" />
+            </div>
+          </div>
+        </div>
+        
+        {/* Seção: Time Comercial */}
+        <div style={{ background: t.goldBg, padding: 12, borderRadius: 8, marginBottom: 12, border: `1px solid ${t.gold}` }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.gold, marginBottom: 4 }}>👥 TIME COMERCIAL (opcional)</div>
+          <div style={{ fontSize: 10, color: t.txt3, marginBottom: 10 }}>Custos com profissionais terceirizados. Deixe zerado se não tiver.</div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <div>
+              <label style={s.lbl}>Closer - Fixo por Venda (R$)</label>
+              <input style={s.inp} type="number" value={f.fixCloser} onChange={e => setF({ ...f, fixCloser: +e.target.value || 0 })} placeholder="0" />
+            </div>
+            <div>
+              <label style={s.lbl}>Closer - % sobre Líquido</label>
+              <input style={s.inp} type="number" value={f.pctCloser} onChange={e => setF({ ...f, pctCloser: +e.target.value || 0 })} placeholder="0" />
+            </div>
+            <div>
+              <label style={s.lbl}>SDR - Fixo por Venda (R$)</label>
+              <input style={s.inp} type="number" value={f.fixSDR} onChange={e => setF({ ...f, fixSDR: +e.target.value || 0 })} placeholder="0" />
+            </div>
+            <div>
+              <label style={s.lbl}>SDR - % sobre Líquido</label>
+              <input style={s.inp} type="number" value={f.pctSDR} onChange={e => setF({ ...f, pctSDR: +e.target.value || 0 })} placeholder="0" />
+            </div>
+            <div>
+              <label style={s.lbl}>Social Seller - Fixo (R$)</label>
+              <input style={s.inp} type="number" value={f.fixSocial} onChange={e => setF({ ...f, fixSocial: +e.target.value || 0 })} placeholder="0" />
+            </div>
+            <div>
+              <label style={s.lbl}>Social Seller - %</label>
+              <input style={s.inp} type="number" value={f.pctSocial} onChange={e => setF({ ...f, pctSocial: +e.target.value || 0 })} placeholder="0" />
+            </div>
+          </div>
+        </div>
+        
+        {/* Seção: Contrato */}
+        <div style={{ background: t.alt, padding: 12, borderRadius: 8, marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.txt, marginBottom: 4 }}>📋 CONTRATO</div>
+          <div style={{ fontSize: 10, color: t.txt3, marginBottom: 10 }}>Informações do contrato com o cliente</div>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            <div>
+              <label style={s.lbl}>Consultor Responsável</label>
+              <select style={s.inp} value={f.cons} onChange={e => setF({ ...f, cons: e.target.value })}>
+                <option value="">Selecione...</option>
+                {consultores.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={s.lbl}>Status do Cliente</label>
+              <select style={s.inp} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}>
+                <option>Ativo</option>
+                <option>Inativo</option>
+                <option>Cancelado</option>
+              </select>
+            </div>
+            <div>
+              <label style={s.lbl}>Data de Início</label>
+              <input style={s.inp} type="date" value={f.inicio} onChange={e => { const novoInicio = e.target.value; if (novoInicio && f.prazo) { const d = new Date(novoInicio); d.setMonth(d.getMonth() + parseInt(f.prazo)); setF({ ...f, inicio: novoInicio, renov: d.toISOString().slice(0, 10) }); } else { setF({ ...f, inicio: novoInicio }); }}} />
+              <Dica texto="Quando começou o contrato" />
+            </div>
+            <div>
+              <label style={s.lbl}>Duração (meses)</label>
+              <input style={s.inp} type="number" value={f.prazo} onChange={e => { const novoPrazo = +e.target.value || 12; if (f.inicio && novoPrazo) { const d = new Date(f.inicio); d.setMonth(d.getMonth() + novoPrazo); setF({ ...f, prazo: novoPrazo, renov: d.toISOString().slice(0, 10) }); } else { setF({ ...f, prazo: novoPrazo }); }}} placeholder="12" />
+              <Dica texto="Quantos meses de contrato" />
+            </div>
+            <div>
+              <label style={s.lbl}>Data de Renovação</label>
+              <input style={{ ...s.inp, background: t.card, cursor: 'not-allowed' }} type="date" value={f.renov} readOnly />
+              <Dica texto="Calculado automaticamente" />
+            </div>
+            <div>
+              <label style={s.lbl}>NPS (0-10)</label>
+              <input style={s.inp} type="number" min="0" max="10" value={f.nps} onChange={e => setF({ ...f, nps: +e.target.value || '' })} placeholder="Ex: 9" />
+              <Dica texto="Satisfação do cliente" />
+            </div>
+          </div>
+        </div>
+        
+        {/* Botões */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={salvar} disabled={saving} style={{ ...s.btn, flex: 1, justifyContent: 'center', background: t.gold, color: '#fff' }}>
+            <Save size={14} />{ed ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+          </button>
+          {ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>
+            <X size={14} />Cancelar
+          </button>}
+        </div>
       </div>
-      <div style={s.card}><h3 style={s.ttl}>Clientes ({clientes.length})</h3>{clientes.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{clientes.map(c => { const sr = statR(c); return <div key={c.id} style={{ padding: 10, background: t.alt, borderRadius: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{c.nome}</div><div style={{ fontSize: 10, color: t.txt2 }}>{c.cons || '-'}{c.metaFat > 0 ? ` • Meta: ${fmt(c.metaFat)}` : ''}{temTime(c) ? ' • 👥 Time' : ''}</div></div><div style={{ display: 'flex', gap: 4 }}><button onClick={() => editar(c)} style={{ background: 'none', border: 'none', color: t.gold, cursor: 'pointer', fontSize: 11 }}>Ed</button><button onClick={() => del(c.id)} style={{ background: 'none', border: 'none', color: t.red, cursor: 'pointer', fontSize: 11 }}>Ex</button></div></div><div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}><Badge c={c.status === 'Ativo' ? 'green' : 'gray'}>{c.status}</Badge><Badge c={sr.cor}>{sr.l}</Badge></div></div>; })}</div>}</div>
+      
+      {/* Botão Gerar Lançamentos */}
+      <div style={{ ...s.card, background: t.goldBg, borderColor: t.gold }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.txt }}>📅 Gerar Lançamentos</div>
+            <div style={{ fontSize: 11, color: t.txt2 }}>Cria automaticamente os lançamentos mensais para todos os clientes ativos</div>
+          </div>
+          <button onClick={gerarTodosLancamentos} disabled={saving} style={{ ...s.btn, background: t.gold, color: '#fff' }}>
+            <Calendar size={14} />Gerar Todos
+          </button>
+        </div>
+      </div>
+      
+      {/* Lista de Clientes */}
+      <div style={s.card}>
+        <h3 style={s.ttl}>📋 Clientes Cadastrados ({clientes.length})</h3>
+        {clientes.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum cliente cadastrado ainda</p> : 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {clientes.map(c => { 
+            const sr = statR(c); 
+            return <div key={c.id} style={{ padding: 12, background: t.alt, borderRadius: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: t.txt, fontSize: 14 }}>{c.nome}</div>
+                  <div style={{ fontSize: 11, color: t.txt2, marginTop: 2 }}>
+                    {c.cons || 'Sem consultor'}{c.metaFat > 0 ? ` • Meta: ${fmt(c.metaFat)}` : ''}{temTime(c) ? ' • 👥 Time' : ''}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => editar(c)} style={{ ...s.btn, padding: '4px 10px', fontSize: 11, background: t.goldBg, color: t.gold }}>
+                    ✏️ Editar
+                  </button>
+                  <button onClick={() => del(c.id)} style={{ ...s.btn, padding: '4px 10px', fontSize: 11, background: t.redBg, color: t.red }}>
+                    🗑️
+                  </button>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <Badge c={c.status === 'Ativo' ? 'green' : 'gray'}>{c.status}</Badge>
+                <Badge c={sr.cor}>Renova: {sr.l}</Badge>
+                {c.valFix > 0 && <Badge c="blue">Fixo: {fmt(c.valFix)}</Badge>}
+              </div>
+            </div>; 
+          })}
+        </div>}
+      </div>
     </div>;
   };
 
   const Custos = () => {
-    if (!canEditAll) return <div style={s.card}><p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Restrito</p></div>;
+    if (!canEditAll) return <div style={s.card}><p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>🔒 Acesso restrito a administradores</p></div>;
     const ef = { cli: '', tipo: 'Ferramenta', descricao: '', val: 0 }; const [f, setF] = useState(ef); const [ed, setEd] = useState(null);
-    const salvar = async () => { if (!f.cli || !f.descricao) return notify('Preencha!'); if (ed) { await svCust(custos.map(c => c.id === ed ? { ...f, id: ed } : c)); setEd(null); } else await svCust([...custos, { ...f, id: Date.now() }]); setF(ef); };
-    const del = async id => { await svCust(custos.filter(c => c.id !== id)); };
+    const salvar = async () => { if (!f.cli || !f.descricao) return notify('Preencha cliente e descrição!'); if (ed) { await svCust(custos.map(c => c.id === ed ? { ...f, id: ed } : c)); setEd(null); } else await svCust([...custos, { ...f, id: Date.now() }]); setF(ef); };
+    const del = async id => { if(!confirm('Tem certeza que deseja excluir este custo?')) return; await svCust(custos.filter(c => c.id !== id)); };
+    const totalCustos = custos.reduce((x, c) => x + (+c.val || 0), 0);
+    
     return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={s.card}><h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'} Custo</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}><div><label style={s.lbl}>Cliente *</label><select style={s.inp} value={f.cli} onChange={e => setF({ ...f, cli: e.target.value })}><option value="">-</option>{clientes.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div><div><label style={s.lbl}>Tipo</label><select style={s.inp} value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option>Ferramenta</option><option>Terceirizado</option><option>Outro</option></select></div><div><label style={s.lbl}>Descrição *</label><input style={s.inp} value={f.descricao} onChange={e => setF({ ...f, descricao: e.target.value })} placeholder="Ex: RD Station, CRM..." /></div><div><label style={s.lbl}>Valor R$</label><input style={s.inp} type="number" value={f.val} onChange={e => setF({ ...f, val: +e.target.value || 0 })} /></div></div><div style={{ display: 'flex', gap: 6, marginTop: 12 }}><button onClick={salvar} disabled={saving} style={s.btn}><Save size={12} />{ed ? 'Salvar' : 'Add'}</button>{ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>Cancelar</button>}</div></div>
-      <div style={s.card}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}><h3 style={{ ...s.ttl, marginBottom: 0 }}>Custos</h3><span style={{ fontWeight: 700, color: t.org }}>{fmt(custos.reduce((x, c) => x + (+c.val || 0), 0))}/mês</span></div>{custos.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{custos.map(c => <div key={c.id} style={{ padding: 10, background: t.alt, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontWeight: 500, color: t.txt, fontSize: 13 }}>{c.descricao || c.desc}</div><div style={{ fontSize: 10, color: t.txt2 }}>{c.cli} • {c.tipo}</div></div><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{fmt(c.val)}</span><button onClick={() => { setF({ ...c, descricao: c.descricao || c.desc }); setEd(c.id); }} style={{ background: 'none', border: 'none', color: t.gold, cursor: 'pointer', fontSize: 11 }}>Ed</button><button onClick={() => del(c.id)} style={{ background: 'none', border: 'none', color: t.red, cursor: 'pointer', fontSize: 11 }}>Ex</button></div></div>)}</div>}</div>
+      <div style={s.card}>
+        <h3 style={s.ttl}>{ed ? '✏️ Editar Custo' : '➕ Novo Custo Operacional'}</h3>
+        <div style={{ fontSize: 11, color: t.txt3, marginBottom: 12 }}>Ferramentas, serviços e outros custos vinculados a cada cliente</div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          <div>
+            <label style={s.lbl}>Cliente *</label>
+            <select style={s.inp} value={f.cli} onChange={e => setF({ ...f, cli: e.target.value })}>
+              <option value="">Selecione o cliente...</option>
+              {clientes.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={s.lbl}>Tipo de Custo</label>
+            <select style={s.inp} value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}>
+              <option>Ferramenta</option>
+              <option>Terceirizado</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div>
+            <label style={s.lbl}>Descrição *</label>
+            <input style={s.inp} value={f.descricao} onChange={e => setF({ ...f, descricao: e.target.value })} placeholder="Ex: RD Station, CRM, Hospedagem..." />
+          </div>
+          <div>
+            <label style={s.lbl}>Valor Mensal (R$)</label>
+            <input style={s.inp} type="number" value={f.val} onChange={e => setF({ ...f, val: +e.target.value || 0 })} placeholder="Ex: 500" />
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <button onClick={salvar} disabled={saving} style={{ ...s.btn, background: t.gold, color: '#fff' }}>
+            <Save size={14} />{ed ? 'Salvar Alterações' : 'Cadastrar Custo'}
+          </button>
+          {ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>
+            <X size={14} />Cancelar
+          </button>}
+        </div>
+      </div>
+      
+      {/* Totalizador */}
+      <div style={{ ...s.card, background: t.orgBg, borderColor: t.org }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 11, color: t.txt3 }}>TOTAL DE CUSTOS MENSAIS</div>
+            <div style={{ fontSize: 10, color: t.txt2 }}>{custos.length} custos cadastrados</div>
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: t.org }}>{fmt(totalCustos)}</div>
+        </div>
+      </div>
+      
+      <div style={s.card}>
+        <h3 style={s.ttl}>💰 Custos Cadastrados</h3>
+        {custos.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum custo cadastrado ainda</p> : 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {custos.map(c => <div key={c.id} style={{ padding: 12, background: t.alt, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 600, color: t.txt, fontSize: 14 }}>{c.descricao || c.desc}</div>
+              <div style={{ fontSize: 11, color: t.txt2, marginTop: 2 }}>
+                👤 {c.cli} • 🏷️ {c.tipo}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontWeight: 700, color: t.org, fontSize: 14 }}>{fmt(c.val)}</span>
+              <button onClick={() => { setF({ ...c, descricao: c.descricao || c.desc }); setEd(c.id); }} style={{ ...s.btn, padding: '4px 10px', fontSize: 11, background: t.goldBg, color: t.gold }}>
+                ✏️
+              </button>
+              <button onClick={() => del(c.id)} style={{ ...s.btn, padding: '4px 10px', fontSize: 11, background: t.redBg, color: t.red }}>
+                🗑️
+              </button>
+            </div>
+          </div>)}
+        </div>}
+      </div>
     </div>;
   };
 
@@ -355,12 +674,131 @@ export default function App() {
     const [f, setF] = useState(ef); const [ed, setEd] = useState(null);
     const lm = getLanc().filter(l => l.mes === mes).map(calc);
     const cl = getCli().filter(c => c.status === 'Ativo');
-    const salvar = async () => { if (!f.cli) return notify('Cliente!'); const dados = { ...f, taxa: (+f.taxa || 0) / 100 }; if (ed) { await svLanc(lancamentos.map(l => l.id === ed ? { ...dados, id: ed } : l)); setEd(null); } else await svLanc([...lancamentos, { ...dados, id: Date.now() }]); setF({ ...ef, mes }); };
-    const del = async id => { await svLanc(lancamentos.filter(x => x.id !== id)); };
+    const salvar = async () => { if (!f.cli) return notify('Selecione um cliente!'); const dados = { ...f, taxa: (+f.taxa || 0) / 100 }; if (ed) { await svLanc(lancamentos.map(l => l.id === ed ? { ...dados, id: ed } : l)); setEd(null); } else await svLanc([...lancamentos, { ...dados, id: Date.now() }]); setF({ ...ef, mes }); };
+    const del = async id => { if(!confirm('Tem certeza que deseja excluir este lançamento?')) return; await svLanc(lancamentos.filter(x => x.id !== id)); };
     const upd = async (id, k, v) => { await svLanc(lancamentos.map(l => l.id === id ? { ...l, [k]: v } : l)); };
+    
+    // Função para marcar como recebido rapidamente
+    const marcarRecebido = async (l) => {
+      await svLanc(lancamentos.map(x => x.id === l.id ? { ...x, status: 'Recebido', pago: l.tot } : x));
+    };
+    
+    // Totalizadores
+    const totBruto = lm.reduce((s, l) => s + (+l.bruto || 0), 0);
+    const totRecebido = lm.filter(l => l.status === 'Recebido').reduce((s, l) => s + (+l.pago || 0), 0);
+    const totPendente = lm.filter(l => l.status !== 'Recebido').reduce((s, l) => s + l.tot, 0);
+    
     return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={s.card}><h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'}</h3><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}><div><label style={s.lbl}>Mês</label><input style={s.inp} type="month" value={f.mes} onChange={e => setF({ ...f, mes: e.target.value })} /></div><div><label style={s.lbl}>Cliente *</label><select style={s.inp} value={f.cli} onChange={e => setF({ ...f, cli: e.target.value })}><option value="">-</option>{cl.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div><div><label style={s.lbl}>Bruto R$</label><input style={s.inp} type="number" value={f.bruto} onChange={e => setF({ ...f, bruto: +e.target.value || 0 })} /></div><div><label style={s.lbl}>Taxa %</label><input style={s.inp} type="number" value={f.taxa} onChange={e => setF({ ...f, taxa: +e.target.value || 0 })} /></div><div><label style={s.lbl}>Status</label><select style={s.inp} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>A Faturar</option><option>Faturado</option><option>Recebido</option><option>Vencido</option></select></div><div><label style={s.lbl}>Pago R$</label><input style={s.inp} type="number" value={f.pago} onChange={e => setF({ ...f, pago: +e.target.value || 0 })} /></div></div><div style={{ display: 'flex', gap: 6, marginTop: 12 }}><button onClick={salvar} disabled={saving} style={s.btn}><Save size={12} />{ed ? 'Salvar' : 'Add'}</button>{ed && <button onClick={() => { setEd(null); setF({ ...ef, mes }); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>Cancelar</button>}</div></div>
-      <div style={s.card}><h3 style={s.ttl}>Lançamentos — {mes}</h3>{lm.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum</p> : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{lm.map(l => <div key={l.id} style={{ padding: 10, background: t.alt, borderRadius: 8 }}><div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{l.cli}</div><div style={{ fontSize: 10, color: t.txt2 }}>Bruto: {fmt(l.bruto)} | Tot: {fmt(l.tot)}</div></div><div style={{ display: 'flex', gap: 4 }}><button onClick={() => { setF({ ...l, taxa: (l.taxa || 0) * 100 }); setEd(l.id); }} style={{ background: 'none', border: 'none', color: t.gold, cursor: 'pointer', fontSize: 11 }}>Ed</button><button onClick={() => del(l.id)} style={{ background: 'none', border: 'none', color: t.red, cursor: 'pointer', fontSize: 11 }}>Ex</button></div></div><div style={{ display: 'flex', gap: 6, alignItems: 'center' }}><select value={l.status} onChange={e => upd(l.id, 'status', e.target.value)} style={{ ...s.inp, padding: 6, width: 'auto', fontSize: 11, background: l.status === 'Recebido' ? t.grnBg : l.status === 'Vencido' ? t.redBg : t.card }}><option>A Faturar</option><option>Faturado</option><option>Recebido</option><option>Vencido</option></select><input type="number" placeholder="Pago" value={l.pago || ''} onChange={e => upd(l.id, 'pago', +e.target.value || 0)} style={{ ...s.inp, padding: 6, width: 80, fontSize: 11 }} /></div></div>)}</div>}</div>
+      <div style={s.card}>
+        <h3 style={s.ttl}>{ed ? '✏️ Editar Lançamento' : '➕ Novo Lançamento'}</h3>
+        <div style={{ fontSize: 11, color: t.txt3, marginBottom: 12 }}>Registre o faturamento mensal de cada cliente</div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+          <div>
+            <label style={s.lbl}>Mês de Referência</label>
+            <input style={s.inp} type="month" value={f.mes} onChange={e => setF({ ...f, mes: e.target.value })} />
+          </div>
+          <div>
+            <label style={s.lbl}>Cliente *</label>
+            <select style={s.inp} value={f.cli} onChange={e => setF({ ...f, cli: e.target.value })}>
+              <option value="">Selecione o cliente...</option>
+              {cl.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={s.lbl}>Faturamento Bruto (R$)</label>
+            <input style={s.inp} type="number" value={f.bruto} onChange={e => setF({ ...f, bruto: +e.target.value || 0 })} placeholder="Valor total faturado" />
+            <span style={{ fontSize: 9, color: t.txt3, display: 'block', marginTop: 2 }}>Quanto o cliente faturou no mês</span>
+          </div>
+          <div>
+            <label style={s.lbl}>Taxa/Impostos (%)</label>
+            <input style={s.inp} type="number" value={f.taxa} onChange={e => setF({ ...f, taxa: +e.target.value || 0 })} placeholder="Ex: 5" />
+            <span style={{ fontSize: 9, color: t.txt3, display: 'block', marginTop: 2 }}>Gateway, impostos, etc</span>
+          </div>
+          <div>
+            <label style={s.lbl}>Status do Pagamento</label>
+            <select style={s.inp} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}>
+              <option>A Faturar</option>
+              <option>Faturado</option>
+              <option>Recebido</option>
+              <option>Vencido</option>
+            </select>
+          </div>
+          <div>
+            <label style={s.lbl}>Valor Pago (R$)</label>
+            <input style={s.inp} type="number" value={f.pago} onChange={e => setF({ ...f, pago: +e.target.value || 0 })} placeholder="Quanto você recebeu" />
+            <span style={{ fontSize: 9, color: t.txt3, display: 'block', marginTop: 2 }}>Preencha ao receber</span>
+          </div>
+        </div>
+        
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <button onClick={salvar} disabled={saving} style={{ ...s.btn, flex: 1, justifyContent: 'center', background: t.gold, color: '#fff' }}>
+            <Save size={14} />{ed ? 'Salvar Alterações' : 'Adicionar Lançamento'}
+          </button>
+          {ed && <button onClick={() => { setEd(null); setF({ ...ef, mes }); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>
+            <X size={14} />Cancelar
+          </button>}
+        </div>
+      </div>
+      
+      {/* Totalizadores */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        <div style={{ ...s.card, padding: 10, textAlign: 'center' }}>
+          <div style={{ fontSize: 9, color: t.txt3, textTransform: 'uppercase' }}>Bruto</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.txt }}>{fmt(totBruto)}</div>
+        </div>
+        <div style={{ ...s.card, padding: 10, textAlign: 'center', background: t.grnBg }}>
+          <div style={{ fontSize: 9, color: t.txt3, textTransform: 'uppercase' }}>Recebido</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.grn }}>{fmt(totRecebido)}</div>
+        </div>
+        <div style={{ ...s.card, padding: 10, textAlign: 'center', background: t.orgBg }}>
+          <div style={{ fontSize: 9, color: t.txt3, textTransform: 'uppercase' }}>Pendente</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.org }}>{fmt(totPendente)}</div>
+        </div>
+      </div>
+      
+      <div style={s.card}>
+        <h3 style={s.ttl}>Lançamentos — {mes} ({lm.length})</h3>
+        {lm.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 16 }}>Nenhum lançamento neste mês</p> : 
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {lm.map(l => <div key={l.id} style={{ padding: 12, background: l.status === 'Recebido' ? t.grnBg : t.alt, borderRadius: 8, border: l.status === 'Recebido' ? `1px solid ${t.grn}` : 'none' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontWeight: 600, color: t.txt, fontSize: 14 }}>{l.cli}</div>
+                <div style={{ fontSize: 11, color: t.txt2, marginTop: 2 }}>
+                  Bruto: {fmt(l.bruto)} → Participação: {fmt(l.tot)}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button onClick={() => { setF({ ...l, taxa: (l.taxa || 0) * 100 }); setEd(l.id); }} style={{ background: 'none', border: 'none', color: t.gold, cursor: 'pointer', fontSize: 11 }}>Ed</button>
+                <button onClick={() => del(l.id)} style={{ background: 'none', border: 'none', color: t.red, cursor: 'pointer', fontSize: 11 }}>Ex</button>
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              {l.status !== 'Recebido' ? (
+                <button onClick={() => marcarRecebido(l)} style={{ ...s.btn, padding: '6px 12px', fontSize: 11, background: t.grn, color: '#fff' }}>
+                  <CheckCircle size={12} /> Recebido
+                </button>
+              ) : (
+                <Badge c="green">✓ Recebido</Badge>
+              )}
+              
+              <select value={l.status} onChange={e => upd(l.id, 'status', e.target.value)} style={{ ...s.inp, padding: 6, width: 'auto', fontSize: 11 }}>
+                <option>A Faturar</option>
+                <option>Faturado</option>
+                <option>Recebido</option>
+                <option>Vencido</option>
+              </select>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ fontSize: 10, color: t.txt3 }}>Pago:</span>
+                <input type="number" value={l.pago || ''} onChange={e => upd(l.id, 'pago', +e.target.value || 0)} style={{ ...s.inp, padding: 6, width: 90, fontSize: 11 }} />
+              </div>
+            </div>
+          </div>)}
+        </div>}
+      </div>
     </div>;
   };
 
