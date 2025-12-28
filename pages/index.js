@@ -169,10 +169,16 @@ export default function App() {
   };
 
   const gerarLancamentos = async (cliente: any) => {
-    if (!cliente.inicio || !cliente.prazo) return [];
+    if (!cliente.inicio || !cliente.prazo) {
+      notify(`⚠️ Cliente "${cliente.nome || 'sem nome'}" não possui data de início ou prazo definidos.`);
+      return [];
+    }
     const novoLancs: any[] = [];
     const dtInicio = new Date(cliente.inicio + 'T00:00:00');
-    if (isNaN(dtInicio.getTime())) return []; // Valida se a data é válida
+    if (isNaN(dtInicio.getTime())) {
+      notify(`❌ Cliente "${cliente.nome || 'sem nome'}" possui data de início inválida: "${cliente.inicio}"`);
+      return [];
+    }
     const prazoMeses = parseInt(cliente.prazo) || 12;
     const valorFixo = +cliente.valFix || 0;
     const diaPgto = +cliente.dtPgtoFix || 10;
