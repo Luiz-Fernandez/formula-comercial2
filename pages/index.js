@@ -89,12 +89,7 @@ export default function App() {
 
   const login = () => {
     const u = users.find(x => x.username === lf.u && x.password === lf.p && x.ativo);
-    if (u) { 
-      setUser(u); 
-      setLe(''); 
-      if(typeof window !== 'undefined') localStorage.setItem('fc-session', JSON.stringify({ id: u.id })); 
-      setTab('dashboard');
-    }
+    if (u) { setUser(u); setLe(''); if(typeof window !== 'undefined') localStorage.setItem('fc-session', JSON.stringify({ id: u.id })); }
     else setLe('Usuário ou senha inválidos');
   };
   const logout = () => { setUser(null); if(typeof window !== 'undefined') localStorage.removeItem('fc-session'); setTab('dashboard'); };
@@ -111,11 +106,8 @@ export default function App() {
 
   const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
   const pct = (v: number) => `${((v || 0) * 100).toFixed(1)}%`;
-  const fmtD = (d: string) => d ? new Date(d).toLocaleDateString('pt-BR') : '-';
-  const diasR = (d: string) => { if (!d) return null; const h = new Date(); h.setHours(0,0,0,0); return Math.ceil((new Date(d).getTime() - h.getTime()) / 86400000); };
-  // Normaliza o mês para formato YYYY-MM (tanto de ISO string quanto de YYYY-MM)
-  const normMes = (m: string) => m ? (m.length > 7 ? m.slice(0, 7) : m) : '';
-  const mesMatch = (lancMes: string) => normMes(lancMes) === mes;
+  const fmtD = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('pt-BR') : '-';
+  const diasR = (d: string) => { if (!d) return null; const h = new Date(); h.setHours(0,0,0,0); return Math.ceil((new Date(d + 'T00:00:00').getTime() - h.getTime()) / 86400000); };
   const statR = (c: any) => { const d = diasR(c.renov); if (d === null) return { l: '-', cor: 'gray' }; if (d < 0) return { l: `${Math.abs(d)}d atraso`, cor: 'red' }; if (d <= 30) return { l: `${d}d`, cor: 'orange' }; return { l: `${d}d`, cor: 'green' }; };
   const getCusCli = (n: string) => custos.filter(c => c.cli === n).reduce((s, c) => s + (+c.val || 0), 0);
   const getC = (n: string) => consultores.find(c => c.nome === n);
@@ -128,7 +120,7 @@ export default function App() {
     const part = liq * (+cl?.pctFix || 0) + (+cl?.valFix || 0);
     const metaFat = +cl?.metaFat || 0;
     // Verifica se tem faturamento registrado para o mês do lançamento
-    const fatRegistrado = faturamentos.find(fat => fat.cli === l.cli && normMes(fat.mes) === normMes(l.mes));
+    const fatRegistrado = faturamentos.find(fat => fat.cli === l.cli && fat.mes === l.mes);
     const atingiuMeta = metaFat > 0 
       ? (fatRegistrado ? +fatRegistrado.valor >= metaFat : bruto >= metaFat) 
       : l.meta;
@@ -148,12 +140,12 @@ export default function App() {
   };
 
   const resumo = () => {
-    const lm = getLanc().filter(l => mesMatch(l.mes)).map(calc);
+    const lm = getLanc().filter(l => l.mes === mes).map(calc);
     return { aRec: lm.filter(l => ['A Faturar', 'Faturado'].includes(l.status)).reduce((s, l) => s + l.tot, 0), rec: lm.filter(l => l.status === 'Recebido').reduce((s, l) => s + (+l.pago || 0), 0), venc: lm.filter(l => l.status === 'Vencido').reduce((s, l) => s + l.tot, 0), cust: custos.reduce((s, c) => s + (+c.val || 0), 0), com: lm.reduce((s, l) => s + l.com, 0), lm };
   };
 
   const comCons = () => {
-    const lm = getLanc().filter(l => mesMatch(l.mes)).map(calc);
+    const lm = getLanc().filter(l => l.mes === mes).map(calc);
     const pc: any = {};
     lm.forEach(l => { 
       if (l.cons) { 
@@ -173,7 +165,7 @@ export default function App() {
     return Object.entries(pc).map(([n, d]: any) => ({ nome: n, ...d }));
   };
 
-  const perf = () => (canViewAll ? consultores : consultores.filter(c => c.nome === uCons)).map(c => { const cl = clientes.filter(x => x.cons === c.nome); const at = cl.filter(x => x.status === 'Ativo').length; const lc = lancamentos.filter(l => clientes.find(x => x.nome === l.cli)?.cons === c.nome).map(calc); const rec = lc.filter(l => l.status === 'Recebido').reduce((s, l) => s + (+l.pago || 0), 0); const mt = metas.find(m => m.cons === c.nome && normMes(m.mes) === mes); return { ...c, at, rec, tk: at > 0 ? rec / at : 0, com: lc.reduce((s, l) => s + l.com, 0), metaV: mt?.val || 0, ating: mt?.val > 0 ? rec / mt.val : 0 }; });
+  const perf = () => (canViewAll ? consultores : consultores.filter(c => c.nome === uCons)).map(c => { const cl = clientes.filter(x => x.cons === c.nome); const at = cl.filter(x => x.status === 'Ativo').length; const lc = lancamentos.filter(l => clientes.find(x => x.nome === l.cli)?.cons === c.nome).map(calc); const rec = lc.filter(l => l.status === 'Recebido').reduce((s, l) => s + (+l.pago || 0), 0); const mt = metas.find(m => m.cons === c.nome && m.mes === mes); return { ...c, at, rec, tk: at > 0 ? rec / at : 0, com: lc.reduce((s, l) => s + l.com, 0), metaV: mt?.val || 0, ating: mt?.val > 0 ? rec / mt.val : 0 }; });
 
   const proj = () => { const p: any[] = []; const h = new Date(); const cl = getCli(); for (let i = 0; i < 6; i++) { const ms = new Date(h.getFullYear(), h.getMonth() + i, 1).toISOString().slice(0, 7); let r = 0; cl.filter(c => c.status === 'Ativo').forEach(c => { const ul = lancamentos.filter(l => l.cli === c.nome).sort((a, b) => b.mes.localeCompare(a.mes))[0]; r += (ul ? calc(ul).tot : 0) * (c.probRen || 1); }); p.push({ mes: ms, val: r }); } return p; };
 
@@ -193,7 +185,7 @@ export default function App() {
   };
   
   const receitaPorCliente = () => {
-    const lm = getLanc().filter(l => mesMatch(l.mes) && l.status === 'Recebido');
+    const lm = getLanc().filter(l => l.mes === mes && l.status === 'Recebido');
     const porCli: any = {};
     lm.forEach(l => { if (!porCli[l.cli]) porCli[l.cli] = 0; porCli[l.cli] += +l.pago || 0; });
     return Object.entries(porCli).map(([nome, valor]) => ({ nome, valor })).sort((a: any, b: any) => b.valor - a.valor).slice(0, 5);
@@ -216,7 +208,7 @@ export default function App() {
     for (let i = 0; i < prazoMeses; i++) {
       const dtMes = new Date(dtInicio.getFullYear(), dtInicio.getMonth() + i, 1);
       const mesStr = dtMes.toISOString().slice(0, 7);
-      const jaExiste = lancamentos.find(l => l.cli === cliente.nome && normMes(l.mes) === mesStr);
+      const jaExiste = lancamentos.find(l => l.cli === cliente.nome && l.mes === mesStr);
       if (jaExiste) continue;
       const diaVenc = Math.min(diaPgto, new Date(dtMes.getFullYear(), dtMes.getMonth() + 1, 0).getDate());
       const dtVenc = new Date(dtMes.getFullYear(), dtMes.getMonth(), diaVenc);
@@ -274,8 +266,7 @@ export default function App() {
     const tipoLabel: any = { admin: 'Administrador', financeiro: 'Financeiro', consultor: 'Consultor' }[user.tipo];
     const tipoColor: any = { admin: 'purple', financeiro: 'orange', consultor: 'gray' }[user.tipo];
     const menuCad = canEditAll ? [{ id: 'consultores', l: 'Consultores', ic: UserCheck }, { id: 'clientes', l: 'Clientes', ic: Users }, { id: 'custos', l: 'Custos', ic: DollarSign }] : [{ id: 'clientes', l: isCons ? 'Meus Clientes' : 'Clientes', ic: Users }];
-    const menuPrincipal = canViewAll ? [{ id: 'dashboard', l: 'Dashboard', ic: Home }] : [{ id: 'dashboard', l: 'Meu Resumo', ic: Home }];
-    const menu = [{ sc: 'm', it: menuPrincipal }, { sc: 'c', l: 'Cadastros', it: menuCad }, { sc: 'o', l: 'Operacional', it: [{ id: 'lancamentos', l: 'Lançamentos', ic: Calendar }, { id: 'faturamento', l: 'Faturamento', ic: BarChart3 }, { id: 'comissoes', l: 'Comissões', ic: Award }, { id: 'tarefas', l: 'Tarefas', ic: ClipboardList }, { id: 'cobranca', l: 'Cobrança', ic: AlertCircle }] }, { sc: 'a', l: 'Análise', it: [{ id: 'projecao', l: 'Projeção', ic: TrendingUp }, { id: 'performance', l: 'Performance', ic: Target }, { id: 'ranking', l: 'Ranking', ic: Star }, { id: 'metas', l: 'Metas', ic: Target }, { id: 'relatorio', l: 'Relatório', ic: FileText }] }, ...(isAdm ? [{ sc: 's', l: 'Sistema', it: [{ id: 'usuarios', l: 'Usuários', ic: Users }] }] : [])];
+    const menu = [{ sc: 'm', it: [{ id: 'dashboard', l: 'Dashboard', ic: Home }] }, { sc: 'c', l: 'Cadastros', it: menuCad }, { sc: 'o', l: 'Operacional', it: [{ id: 'lancamentos', l: 'Lançamentos', ic: Calendar }, { id: 'faturamento', l: 'Faturamento', ic: BarChart3 }, { id: 'comissoes', l: 'Comissões', ic: Award }, { id: 'tarefas', l: 'Tarefas', ic: ClipboardList }, { id: 'cobranca', l: 'Cobrança', ic: AlertCircle }] }, { sc: 'a', l: 'Análise', it: [{ id: 'projecao', l: 'Projeção', ic: TrendingUp }, { id: 'performance', l: 'Performance', ic: Target }, { id: 'ranking', l: 'Ranking', ic: Star }, { id: 'metas', l: 'Metas', ic: Target }, { id: 'relatorio', l: 'Relatório', ic: FileText }] }, ...(isAdm ? [{ sc: 's', l: 'Sistema', it: [{ id: 'usuarios', l: 'Usuários', ic: Users }] }] : [])];
     const navTo = (id: string) => { setTab(id); setCliDetalhe(null); if (isMobile) setSb(false); };
     const notifs = getNotificacoes();
     
@@ -294,10 +285,6 @@ export default function App() {
         {notifs.slice(0, 4).map((n, i) => <div key={i} style={{ fontSize: 11, color: t.txt2, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 8, height: 8, borderRadius: 4, background: (t as any)[n.cor], flexShrink: 0 }} />{n.msg}</div>)}
       </div>}
       <nav style={{ flex: 1, padding: 12, overflowY: 'auto' }}>{menu.map(g => <div key={g.sc} style={{ marginBottom: 8 }}>{g.l && <button onClick={() => setExp({ ...exp, [g.sc]: !exp[g.sc] })} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'none', border: 'none', color: t.txt3, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', cursor: 'pointer', letterSpacing: 0.5 }}>{g.l}{exp[g.sc] ? <ChevronDown size={14} /> : <ChevronRight size={14} />}</button>}{(g.sc === 'm' || exp[g.sc]) && g.it.map(i => <button key={i.id} onClick={() => navTo(i.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: tab === i.id ? t.goldBg : 'transparent', border: 'none', borderRadius: 8, color: tab === i.id ? t.gold : t.txt2, fontSize: 13, fontWeight: tab === i.id ? 600 : 400, cursor: 'pointer', marginBottom: 4, transition: 'all .2s' }}><i.ic size={16} />{i.l}</button>)}</div>)}</nav>
-      <div style={{ padding: 8, borderTop: `1px solid ${t.brd}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: online ? t.grnBg : t.redBg }}>
-        {online ? <CheckCircle size={14} color={t.grn} /> : <CloudOff size={14} color={t.red} />}
-        <span style={{ fontSize: 11, fontWeight: 600, color: online ? t.grn : t.red }}>{online ? 'Conectado ao Google Sheets' : 'Offline - Sem conexão'}</span>
-      </div>
       <div style={{ padding: 12, borderTop: `1px solid ${t.brd}`, display: 'flex', gap: 6 }}>
         <button onClick={() => setDark(!dark)} style={{ padding: 10, background: t.alt, border: 'none', borderRadius: 8, cursor: 'pointer', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{dark ? <Sun size={16} color={t.txt} /> : <Moon size={16} color={t.txt} />}</button>
         <button onClick={loadData} style={{ padding: 10, background: t.alt, border: 'none', borderRadius: 8, cursor: 'pointer' }}><RefreshCw size={16} color={t.txt} /></button>
@@ -307,66 +294,15 @@ export default function App() {
     </aside>;
   };
 
-  const DashboardConsultor = () => {
-    const meusClientes = getCli();
-    const minhasTarefas = tarefas.filter(t => {
-      const cli = clientes.find(c => c.nome === t.cli);
-      return cli?.cons === uCons && t.status !== 'Concluída';
-    });
-    const meusLanc = getLanc().filter(l => mesMatch(l.mes)).map(calc);
-    const totalReceber = meusLanc.filter(l => ['A Faturar', 'Faturado'].includes(l.status)).reduce((s, l) => s + l.tot, 0);
-    const totalRecebido = meusLanc.filter(l => l.status === 'Recebido').reduce((s, l) => s + (+l.pago || 0), 0);
-
-    return <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div><h1 style={{ fontSize: 28, fontWeight: 700, color: t.txt, marginBottom: 4 }}>Olá, {user.nome.split(' ')[0]}!</h1><p style={{ color: t.txt2, fontSize: 15 }}>Aqui está seu resumo de {mes}</p></div>
-      
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 16 }}>
-        <div style={{ ...s.card, padding: 20, background: t.goldBg }}><div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}><Users size={20} color={t.gold} /><span style={{ fontSize: 12, color: t.txt2 }}>Meus Clientes</span></div><div style={{ fontSize: 28, fontWeight: 700, color: t.gold }}>{meusClientes.length}</div></div>
-        <div style={{ ...s.card, padding: 20, background: t.orgBg }}><div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}><ClipboardList size={20} color={t.org} /><span style={{ fontSize: 12, color: t.txt2 }}>Tarefas Pendentes</span></div><div style={{ fontSize: 28, fontWeight: 700, color: t.org }}>{minhasTarefas.length}</div></div>
-        <div style={{ ...s.card, padding: 20, background: t.blueBg }}><div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}><Clock size={20} color={t.blue} /><span style={{ fontSize: 12, color: t.txt2 }}>A Receber</span></div><div style={{ fontSize: 20, fontWeight: 700, color: t.blue }}>{fmt(totalReceber)}</div></div>
-        <div style={{ ...s.card, padding: 20, background: t.grnBg }}><div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}><CheckCircle size={20} color={t.grn} /><span style={{ fontSize: 12, color: t.txt2 }}>Recebido</span></div><div style={{ fontSize: 20, fontWeight: 700, color: t.grn }}>{fmt(totalRecebido)}</div></div>
-      </div>
-
-      {minhasTarefas.length > 0 && <div style={s.card}>
-        <h3 style={{ ...s.ttl, fontSize: 16 }}>Tarefas Pendentes</h3>
-        <div style={{ display: 'grid', gap: 10 }}>
-          {minhasTarefas.slice(0, 5).map(tar => {
-            const prioColor: any = { alta: t.red, media: t.org, baixa: t.grn }[tar.prio] || t.txt3;
-            return <div key={tar.id} style={{ padding: 12, background: t.alt, borderRadius: 8, borderLeft: `4px solid ${prioColor}` }}>
-              <div style={{ fontWeight: 600, color: t.txt, fontSize: 14 }}>{tar.titulo}</div>
-              <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>{tar.cli} • {tar.tipo} • {fmtD(tar.prazo)}</div>
-            </div>;
-          })}
-          {minhasTarefas.length > 5 && <div style={{ fontSize: 12, color: t.txt3, textAlign: 'center' }}>+{minhasTarefas.length - 5} tarefas...</div>}
-        </div>
-      </div>}
-
-      <div style={s.card}>
-        <h3 style={{ ...s.ttl, fontSize: 16 }}>Meus Clientes ({meusClientes.length})</h3>
-        {meusClientes.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 20 }}>Nenhum cliente vinculado</p> : 
-        <div style={{ display: 'grid', gap: 10 }}>
-          {meusClientes.map(c => {
-            const sr = statR(c);
-            return <div key={c.id} style={{ padding: 12, background: t.alt, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div><div style={{ fontWeight: 600, color: t.txt, fontSize: 14 }}>{c.nome}</div><div style={{ fontSize: 12, color: t.txt3, marginTop: 2 }}>Renovação: {sr.l}</div></div>
-              <Badge c={c.status === 'Ativo' ? 'green' : 'gray'}>{c.status}</Badge>
-            </div>;
-          })}
-        </div>}
-      </div>
-    </div>;
-  };
-
   const Dashboard = () => {
-    if (isCons) return <DashboardConsultor />;
     const r = resumo(); const notifs = getNotificacoes(); const recCli = receitaPorCliente();
-    const mg = metas.find(m => m.cons === (canViewAll ? 'GERAL' : uCons) && normMes(m.mes) === mes);
+    const mg = metas.find(m => m.cons === (canViewAll ? 'GERAL' : uCons) && m.mes === mes); 
     const at = mg?.val > 0 ? r.rec / mg.val : 0;
     const res = r.rec - r.cust - r.com;
     const compMensal: any[] = []; const h = new Date();
     for (let i = 5; i >= 0; i--) {
       const ms = new Date(h.getFullYear(), h.getMonth() - i, 1).toISOString().slice(0, 7);
-      const lm = getLanc().filter(l => normMes(l.mes) === ms).map(calc);
+      const lm = getLanc().filter(l => l.mes === ms).map(calc);
       compMensal.push({ m: ms.slice(5), rec: lm.filter(l => l.status === 'Recebido').reduce((x, l) => x + (+l.pago || 0), 0), prev: lm.filter(l => ['A Faturar', 'Faturado'].includes(l.status)).reduce((x, l) => x + l.tot, 0) });
     }
 
@@ -427,7 +363,7 @@ export default function App() {
   const Lancamentos = () => {
     const ef = { mes: mes, cli: '', bruto: 0, taxa: 5, meta: false, venc: '', status: 'A Faturar', pago: 0, comRecebida: 0 };
     const [f, setF] = useState<any>(ef); const [ed, setEd] = useState<any>(null); const [filtro, setFiltro] = useState('');
-    const lm = getLanc().filter(l => mesMatch(l.mes)).map(calc).filter(l => !filtro || l.cli.toLowerCase().includes(filtro.toLowerCase()));
+    const lm = getLanc().filter(l => l.mes === mes).map(calc).filter(l => !filtro || l.cli.toLowerCase().includes(filtro.toLowerCase()));
     const salvar = async () => { if (!f.cli) return notify('Selecione o cliente!'); const dados = { ...f, taxa: (+f.taxa || 0) / 100, comRecebida: +f.comRecebida || 0 }; if (ed) { await svLanc(lancamentos.map(l => l.id === ed ? { ...dados, id: ed } : l)); setEd(null); } else await svLanc([...lancamentos, { ...dados, id: Date.now() }]); setF(ef); };
     const del = async (id: any) => { if(!confirm('Excluir este lançamento?')) return; await svLanc(lancamentos.filter(l => l.id !== id)); };
     const editar = (l: any) => { setF({ ...l, taxa: (l.taxa || 0) * 100, comRecebida: l.comRecebida || 0 }); setEd(l.id); };
@@ -478,54 +414,27 @@ export default function App() {
           <p style={{ color: t.txt3, textAlign: 'center', padding: 30 }}>Nenhum lançamento neste mês</p>
         ) : (
           <div style={{ display: 'grid', gap: 10 }}>
-            {lm.map(l => {
-              const taxaAtual = (l.taxa || 0) * 100;
-              const inputId = `taxa-${l.id}`;
-              const salvarTaxa = async () => {
-                const input = document.getElementById(inputId) as HTMLInputElement;
-                const novaTaxa = +input?.value || 0;
-                if (novaTaxa !== taxaAtual) {
-                  await svLanc(lancamentos.map(x => x.id === l.id ? { ...x, taxa: novaTaxa / 100 } : x));
-                }
-              };
-              return (
-                <div key={l.id} style={{ padding: 14, background: t.alt, borderRadius: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-                    <div>
-                      <div style={{ fontWeight: 600, color: t.txt }}>{l.cli}</div>
-                      <div style={{ fontSize: 12, color: t.txt3, marginTop: 2 }}>
-                        Bruto: {fmt(l.bruto)} 
-                        <span style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          (<input 
-                            id={inputId}
-                            type="number" 
-                            defaultValue={taxaAtual} 
-                            style={{ width: 40, padding: '2px 4px', border: `1px solid ${t.brd}`, borderRadius: 4, fontSize: 12, textAlign: 'center', background: t.card }}
-                          />% taxa
-                          <button 
-                            onClick={salvarTaxa} 
-                            disabled={saving}
-                            style={{ padding: '2px 6px', background: t.grn, color: '#fff', border: 'none', borderRadius: 4, fontSize: 10, cursor: 'pointer' }}
-                          >✓</button>)
-                        </span>
-                        → {fmt(l.tot)}{l.atingiuMeta && ' ★'}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Badge c={l.status === 'Recebido' ? 'green' : l.status === 'Vencido' ? 'red' : l.status === 'Faturado' ? 'blue' : 'gray'}>{l.status}</Badge>
-                      <button onClick={() => editar(l)} style={{ ...s.btn, padding: '6px 10px', background: t.goldBg, color: t.gold }}>Editar</button>
-                      <button onClick={() => del(l.id)} style={{ ...s.btn, padding: '6px 10px', background: t.redBg, color: t.red }}>Excluir</button>
-                    </div>
+            {lm.map(l => (
+              <div key={l.id} style={{ padding: 14, background: t.alt, borderRadius: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: t.txt }}>{l.cli}</div>
+                    <div style={{ fontSize: 12, color: t.txt3, marginTop: 2 }}>Bruto: {fmt(l.bruto)} - Participação: {fmt(l.tot)}{l.atingiuMeta && ' ★'}</div>
                   </div>
-                  {l.status === 'Recebido' && (
-                    <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 13 }}>
-                      <span style={{ color: t.grn }}>Pago: {fmt(l.pago)}</span>
-                      <span style={{ color: t.pur, fontWeight: 600 }}>Comissão: {fmt(l.comRecebida || 0)}</span>
-                    </div>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Badge c={l.status === 'Recebido' ? 'green' : l.status === 'Vencido' ? 'red' : l.status === 'Faturado' ? 'blue' : 'gray'}>{l.status}</Badge>
+                    <button onClick={() => editar(l)} style={{ ...s.btn, padding: '6px 10px', background: t.goldBg, color: t.gold }}>Editar</button>
+                    <button onClick={() => del(l.id)} style={{ ...s.btn, padding: '6px 10px', background: t.redBg, color: t.red }}>Excluir</button>
+                  </div>
                 </div>
-              );
-            })}
+                {l.status === 'Recebido' && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 13 }}>
+                    <span style={{ color: t.grn }}>Pago: {fmt(l.pago)}</span>
+                    <span style={{ color: t.pur, fontWeight: 600 }}>Comissão: {fmt(l.comRecebida || 0)}</span>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -657,9 +566,9 @@ export default function App() {
     const [ed, setEd] = useState<any>(null);
     const [filtro, setFiltro] = useState('');
     
-    const fm = faturamentos.filter(fat => normMes(fat.mes) === mes).filter(fat => !filtro || fat.cli.toLowerCase().includes(filtro.toLowerCase()));
+    const fm = faturamentos.filter(fat => fat.mes === mes).filter(fat => !filtro || fat.cli.toLowerCase().includes(filtro.toLowerCase()));
     const totalFat = fm.reduce((s, fat) => s + (+fat.valor || 0), 0);
-    const clientesComFat = [...new Set(faturamentos.filter(fat => normMes(fat.mes) === mes).map(fat => fat.cli))].length;
+    const clientesComFat = [...new Set(faturamentos.filter(fat => fat.mes === mes).map(fat => fat.cli))].length;
     
     const getMetaCliente = (cliNome: string) => {
       const cli = clientes.find(c => c.nome === cliNome);
@@ -682,7 +591,7 @@ export default function App() {
         setEd(null);
       } else {
         // Verifica se já existe faturamento para este cliente/mês
-        const existe = faturamentos.find(fat => fat.cli === f.cli && normMes(fat.mes) === normMes(f.mes));
+        const existe = faturamentos.find(fat => fat.cli === f.cli && fat.mes === f.mes);
         if (existe) {
           if (!confirm(`Já existe faturamento para ${f.cli} em ${f.mes}. Deseja substituir?`)) return;
           await svFat(faturamentos.map(fat => fat.id === existe.id ? { ...dados, id: existe.id } : fat));
@@ -709,7 +618,7 @@ export default function App() {
       let total = 0;
       for (let i = 0; i < 12; i++) {
         const ms = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1).toISOString().slice(0, 7);
-        const fatMes = faturamentos.filter(fat => normMes(fat.mes) === ms);
+        const fatMes = faturamentos.filter(fat => fat.mes === ms);
         total += fatMes.reduce((s, fat) => s + (+fat.valor || 0), 0);
       }
       return total;
@@ -724,7 +633,7 @@ export default function App() {
       const hoje = new Date();
       for (let i = 5; i >= 0; i--) {
         const ms = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1).toISOString().slice(0, 7);
-        const fatMes = faturamentos.filter(fat => normMes(fat.mes) === ms);
+        const fatMes = faturamentos.filter(fat => fat.mes === ms);
         const total = fatMes.reduce((s, fat) => s + (+fat.valor || 0), 0);
         const qtdMeta = fatMes.filter(fat => atingiuMeta(fat)).length;
         dados.push({ mes: ms.slice(5), total, qtdMeta, qtdClientes: fatMes.length });
@@ -922,8 +831,8 @@ export default function App() {
 
   const Metas = () => {
     const [f, setF] = useState({ cons: 'GERAL', mes, val: 0 }); 
-    const salvar = async () => { const ex = metas.findIndex(m => m.cons === f.cons && normMes(m.mes) === normMes(f.mes)); if (ex >= 0) await svMet(metas.map((m, i) => i === ex ? { ...f, id: m.id } : m)); else await svMet([...metas, { ...f, id: Date.now() }]); setF({ cons: 'GERAL', mes, val: 0 }); };
-    const mg = metas.find(m => m.cons === 'GERAL' && normMes(m.mes) === mes);
+    const salvar = async () => { const ex = metas.findIndex(m => m.cons === f.cons && m.mes === f.mes); if (ex >= 0) await svMet(metas.map((m, i) => i === ex ? { ...f, id: m.id } : m)); else await svMet([...metas, { ...f, id: Date.now() }]); setF({ cons: 'GERAL', mes, val: 0 }); };
+    const mg = metas.find(m => m.cons === 'GERAL' && m.mes === mes);
     const r = resumo();
     const at = mg?.val > 0 ? r.rec / mg.val : 0;
     
@@ -951,21 +860,8 @@ export default function App() {
     const salvar = async () => { if (!f.username || !f.password || !f.nome) return notify('Preencha todos os campos!'); if (ed) { await svUsers(users.map(u => u.id === ed ? { ...f, id: ed } : u)); setEd(null); } else await svUsers([...users, { ...f, id: Date.now() }]); setF(ef); };
     const del = async (id: any) => { if (id === 1) return notify('Não é possível excluir o master!'); if(!confirm('Excluir este usuário?')) return; await svUsers(users.filter(x => x.id !== id)); };
     
-    const importarConsultor = (consultor: any) => {
-      if (!consultor) return;
-      setF({ ...f, username: consultor.email || '', nome: consultor.nome || '', tipo: 'consultor', consultor: consultor.nome || '' });
-    };
-    
     return <div style={{ display: 'grid', gap: 20 }}>
-      <div style={s.card}><h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'} Usuário</h3>
-        {!ed && <div style={{ marginBottom: 16, padding: 12, background: t.goldBg, borderRadius: 8 }}>
-          <label style={{ ...s.lbl, color: t.gold }}>Importar dados de consultor</label>
-          <select style={s.inp} onChange={e => { const c = consultores.find(x => x.id === +e.target.value); importarConsultor(c); }} defaultValue="">
-            <option value="">Selecione um consultor...</option>
-            {consultores.map(c => <option key={c.id} value={c.id}>{c.nome} {c.email ? `(${c.email})` : ''}</option>)}
-          </select>
-        </div>}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}><div><label style={s.lbl}>Login (e-mail) *</label><input style={s.inp} value={f.username} onChange={e => setF({ ...f, username: e.target.value })} /></div><div><label style={s.lbl}>Senha *</label><input style={s.inp} type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></div><div><label style={s.lbl}>Nome *</label><input style={s.inp} value={f.nome} onChange={e => setF({ ...f, nome: e.target.value })} /></div><div><label style={s.lbl}>Tipo</label><select style={s.inp} value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="admin">Administrador</option><option value="financeiro">Financeiro</option><option value="consultor">Consultor</option></select></div><div><label style={s.lbl}>Consultor Vinculado</label><select style={s.inp} value={f.consultor} onChange={e => setF({ ...f, consultor: e.target.value })}><option value="">Nenhum</option>{consultores.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div><div><label style={s.lbl}>Status</label><select style={s.inp} value={f.ativo ? 'sim' : 'nao'} onChange={e => setF({ ...f, ativo: e.target.value === 'sim' })}><option value="sim">Ativo</option><option value="nao">Inativo</option></select></div></div><div style={{ display: 'flex', gap: 10, marginTop: 20 }}><button onClick={salvar} disabled={saving} style={{ ...s.btn, background: t.gold, color: '#fff' }}><Save size={16} />{ed ? 'Salvar' : 'Cadastrar'}</button>{ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}><X size={16} />Cancelar</button>}</div></div>
+      <div style={s.card}><h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'} Usuário</h3><div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}><div><label style={s.lbl}>Login (e-mail) *</label><input style={s.inp} value={f.username} onChange={e => setF({ ...f, username: e.target.value })} /></div><div><label style={s.lbl}>Senha *</label><input style={s.inp} type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} /></div><div><label style={s.lbl}>Nome *</label><input style={s.inp} value={f.nome} onChange={e => setF({ ...f, nome: e.target.value })} /></div><div><label style={s.lbl}>Tipo</label><select style={s.inp} value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}><option value="admin">Administrador</option><option value="financeiro">Financeiro</option><option value="consultor">Consultor</option></select></div><div><label style={s.lbl}>Consultor Vinculado</label><select style={s.inp} value={f.consultor} onChange={e => setF({ ...f, consultor: e.target.value })}><option value="">Nenhum</option>{consultores.map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div><div><label style={s.lbl}>Status</label><select style={s.inp} value={f.ativo ? 'sim' : 'nao'} onChange={e => setF({ ...f, ativo: e.target.value === 'sim' })}><option value="sim">Ativo</option><option value="nao">Inativo</option></select></div></div><div style={{ display: 'flex', gap: 10, marginTop: 20 }}><button onClick={salvar} disabled={saving} style={{ ...s.btn, background: t.gold, color: '#fff' }}><Save size={16} />{ed ? 'Salvar' : 'Cadastrar'}</button>{ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}><X size={16} />Cancelar</button>}</div></div>
       <div style={s.card}><h3 style={s.ttl}>Usuários ({users.length})</h3><div style={{ display: 'grid', gap: 10 }}>{users.map(u => <div key={u.id} style={{ padding: 14, background: t.alt, borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><div><div style={{ fontWeight: 600, color: t.txt }}>{u.nome}</div><div style={{ fontSize: 12, color: t.txt3 }}>{u.username}</div></div><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Badge c={u.tipo === 'admin' ? 'purple' : u.tipo === 'financeiro' ? 'blue' : 'gray'}>{u.tipo}</Badge>{u.id !== 1 && <><button onClick={() => { setF(u); setEd(u.id); }} style={{ ...s.btn, padding: '6px 10px', background: t.goldBg, color: t.gold }}>Editar</button><button onClick={() => del(u.id)} style={{ ...s.btn, padding: '6px 10px', background: t.redBg, color: t.red }}>Excluir</button></>}</div></div>)}</div></div>
     </div>;
   };
