@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Save, Download, Users, DollarSign, TrendingUp, AlertCircle, CheckCircle, Clock, Calendar, FileText, Bell, RefreshCw, Moon, Sun, Menu, Target, Star, ClipboardList, UserCheck, Award, ChevronRight, ChevronDown, LogOut, Lock, Eye, EyeOff, Loader, CloudOff, X, Home, Phone, Mail } from 'lucide-react';
+import { Save, Download, Users, DollarSign, TrendingUp, AlertCircle, CheckCircle, Clock, Calendar, FileText, Bell, RefreshCw, Moon, Sun, Menu, Target, Star, ClipboardList, UserCheck, Award, ChevronRight, ChevronDown, LogOut, Lock, Eye, EyeOff, Loader, CloudOff, X, Home, Phone, Mail, BarChart3 } from 'lucide-react';
 
 const API_URL = 'https://script.google.com/macros/s/AKfycbx-S-Aq_6M1BbJiaX-LH2Sgij1-zTlyGLV4G1sRi1RdN-Ij4EHJyx-u6xiZwLMDFuyz/exec';
 const MASTER = { id: 1, username: 'luizfernandezf@gmail.com', password: 'Luiz3362@*', nome: 'Luiz Fernandez', tipo: 'admin', consultor: '', ativo: true };
@@ -18,6 +18,7 @@ export default function App() {
   const [lancamentos, setLanc] = useState<any[]>([]);
   const [tarefas, setTar] = useState<any[]>([]);
   const [metas, setMet] = useState<any[]>([]);
+  const [faturamentos, setFat] = useState<any[]>([]);
   const [loading, setLoad] = useState(true);
   const [saving, setSaving] = useState(false);
   const [online, setOnline] = useState(true);
@@ -53,6 +54,7 @@ export default function App() {
       setLanc(data.lancamentos || []);
       setTar(data.tarefas || []);
       setMet(data.metas || []);
+      setFat(data.faturamentos || []);
       let us = data.usuarios || [];
       if (!us.find((u: any) => u.id === 1)) { us = [MASTER, ...us]; await saveSheet('Usuarios', us); }
       setUsers(us);
@@ -82,6 +84,7 @@ export default function App() {
   const svLanc = async (d: any[]) => { setLanc(d); const ok = await saveSheet('Lancamentos', d); notify(ok ? 'Salvo!' : 'Erro!'); };
   const svTar = async (d: any[]) => { setTar(d); const ok = await saveSheet('Tarefas', d); notify(ok ? 'Salvo!' : 'Erro!'); };
   const svMet = async (d: any[]) => { setMet(d); const ok = await saveSheet('Metas', d); notify(ok ? 'Salvo!' : 'Erro!'); };
+  const svFat = async (d: any[]) => { setFat(d); const ok = await saveSheet('Faturamentos', d); notify(ok ? 'Salvo!' : 'Erro!'); };
   const svUsers = async (d: any[]) => { setUsers(d); const ok = await saveSheet('Usuarios', d); notify(ok ? 'Salvo!' : 'Erro!'); };
 
   const login = () => {
@@ -116,7 +119,11 @@ export default function App() {
     const liq = bruto * (1 - (+l.taxa || 0));
     const part = liq * (+cl?.pctFix || 0) + (+cl?.valFix || 0);
     const metaFat = +cl?.metaFat || 0;
-    const atingiuMeta = metaFat > 0 ? bruto >= metaFat : l.meta;
+    // Verifica se tem faturamento registrado para o mês do lançamento
+    const fatRegistrado = faturamentos.find(fat => fat.cli === l.cli && fat.mes === l.mes);
+    const atingiuMeta = metaFat > 0 
+      ? (fatRegistrado ? +fatRegistrado.valor >= metaFat : bruto >= metaFat) 
+      : l.meta;
     const bon = atingiuMeta ? liq * (+cl?.pctBonus || 0) + (+cl?.valBonus || 0) : 0;
     const tot = part + bon;
     const cusCloser = (+cl?.fixCloser || 0) + liq * (+cl?.pctCloser || 0);
@@ -125,9 +132,11 @@ export default function App() {
     const cusTime = cusCloser + cusSDR + cusSocial;
     const cusOp = getCusCli(l.cli);
     const cusTot = cusOp + (l.status === 'Recebido' ? cusTime : 0);
-    const base = Math.max(0, (+l.pago || 0) - cusTot);
+    // Usa a comissão recebida registrada, se houver, senão calcula baseado no valor
+    const comRecebida = +l.comRecebida || 0;
+    const base = Math.max(0, comRecebida > 0 ? comRecebida - cusTot : (+l.pago || 0) - cusTot);
     const com = l.status === 'Recebido' ? base * (co?.pctCom || 0.2) : 0;
-    return { ...l, liq, part, bon, tot, cusOp, cusTime, cusCloser, cusSDR, cusSocial, cusTot, base, com, cons: cl?.cons || '', atingiuMeta };
+    return { ...l, liq, part, bon, tot, cusOp, cusTime, cusCloser, cusSDR, cusSocial, cusTot, base, com, comRecebida, cons: cl?.cons || '', atingiuMeta };
   };
 
   const resumo = () => {
@@ -138,7 +147,21 @@ export default function App() {
   const comCons = () => {
     const lm = getLanc().filter(l => l.mes === mes).map(calc);
     const pc: any = {};
-    lm.forEach(l => { if (l.cons) { if (!pc[l.cons]) { const c = getC(l.cons); pc[l.cons] = { rec: 0, com: 0, pend: 0, pct: c?.pctCom || 0.2 }; } if (l.status === 'Recebido') { pc[l.cons].rec += +l.pago || 0; pc[l.cons].com += l.com; } else pc[l.cons].pend += l.tot; } });
+    lm.forEach(l => { 
+      if (l.cons) { 
+        if (!pc[l.cons]) { 
+          const c = getC(l.cons); 
+          pc[l.cons] = { rec: 0, comRec: 0, com: 0, pend: 0, pct: c?.pctCom || 0.2 }; 
+        } 
+        if (l.status === 'Recebido') { 
+          pc[l.cons].rec += +l.pago || 0; 
+          pc[l.cons].comRec += +l.comRecebida || 0;
+          pc[l.cons].com += l.com; 
+        } else {
+          pc[l.cons].pend += l.tot; 
+        }
+      } 
+    });
     return Object.entries(pc).map(([n, d]: any) => ({ nome: n, ...d }));
   };
 
@@ -243,7 +266,7 @@ export default function App() {
     const tipoLabel: any = { admin: 'Administrador', financeiro: 'Financeiro', consultor: 'Consultor' }[user.tipo];
     const tipoColor: any = { admin: 'purple', financeiro: 'orange', consultor: 'gray' }[user.tipo];
     const menuCad = canEditAll ? [{ id: 'consultores', l: 'Consultores', ic: UserCheck }, { id: 'clientes', l: 'Clientes', ic: Users }, { id: 'custos', l: 'Custos', ic: DollarSign }] : [{ id: 'clientes', l: isCons ? 'Meus Clientes' : 'Clientes', ic: Users }];
-    const menu = [{ sc: 'm', it: [{ id: 'dashboard', l: 'Dashboard', ic: Home }] }, { sc: 'c', l: 'Cadastros', it: menuCad }, { sc: 'o', l: 'Operacional', it: [{ id: 'lancamentos', l: 'Lançamentos', ic: Calendar }, { id: 'comissoes', l: 'Comissões', ic: Award }, { id: 'tarefas', l: 'Tarefas', ic: ClipboardList }, { id: 'cobranca', l: 'Cobrança', ic: AlertCircle }] }, { sc: 'a', l: 'Análise', it: [{ id: 'projecao', l: 'Projeção', ic: TrendingUp }, { id: 'performance', l: 'Performance', ic: Target }, { id: 'ranking', l: 'Ranking', ic: Star }, { id: 'metas', l: 'Metas', ic: Target }, { id: 'relatorio', l: 'Relatório', ic: FileText }] }, ...(isAdm ? [{ sc: 's', l: 'Sistema', it: [{ id: 'usuarios', l: 'Usuários', ic: Users }] }] : [])];
+    const menu = [{ sc: 'm', it: [{ id: 'dashboard', l: 'Dashboard', ic: Home }] }, { sc: 'c', l: 'Cadastros', it: menuCad }, { sc: 'o', l: 'Operacional', it: [{ id: 'lancamentos', l: 'Lançamentos', ic: Calendar }, { id: 'faturamento', l: 'Faturamento', ic: BarChart3 }, { id: 'comissoes', l: 'Comissões', ic: Award }, { id: 'tarefas', l: 'Tarefas', ic: ClipboardList }, { id: 'cobranca', l: 'Cobrança', ic: AlertCircle }] }, { sc: 'a', l: 'Análise', it: [{ id: 'projecao', l: 'Projeção', ic: TrendingUp }, { id: 'performance', l: 'Performance', ic: Target }, { id: 'ranking', l: 'Ranking', ic: Star }, { id: 'metas', l: 'Metas', ic: Target }, { id: 'relatorio', l: 'Relatório', ic: FileText }] }, ...(isAdm ? [{ sc: 's', l: 'Sistema', it: [{ id: 'usuarios', l: 'Usuários', ic: Users }] }] : [])];
     const navTo = (id: string) => { setTab(id); setCliDetalhe(null); if (isMobile) setSb(false); };
     const notifs = getNotificacoes();
     
@@ -338,27 +361,147 @@ export default function App() {
   };
 
   const Lancamentos = () => {
-    const ef = { mes: mes, cli: '', bruto: 0, taxa: 5, meta: false, venc: '', status: 'A Faturar', pago: 0 };
+    const ef = { mes: mes, cli: '', bruto: 0, taxa: 5, meta: false, venc: '', status: 'A Faturar', pago: 0, comRecebida: 0 };
     const [f, setF] = useState<any>(ef); const [ed, setEd] = useState<any>(null); const [filtro, setFiltro] = useState('');
     const lm = getLanc().filter(l => l.mes === mes).map(calc).filter(l => !filtro || l.cli.toLowerCase().includes(filtro.toLowerCase()));
-    const salvar = async () => { if (!f.cli) return notify('Selecione o cliente!'); const dados = { ...f, taxa: (+f.taxa || 0) / 100 }; if (ed) { await svLanc(lancamentos.map(l => l.id === ed ? { ...dados, id: ed } : l)); setEd(null); } else await svLanc([...lancamentos, { ...dados, id: Date.now() }]); setF(ef); };
+    const salvar = async () => { if (!f.cli) return notify('Selecione o cliente!'); const dados = { ...f, taxa: (+f.taxa || 0) / 100, comRecebida: +f.comRecebida || 0 }; if (ed) { await svLanc(lancamentos.map(l => l.id === ed ? { ...dados, id: ed } : l)); setEd(null); } else await svLanc([...lancamentos, { ...dados, id: Date.now() }]); setF(ef); };
     const del = async (id: any) => { if(!confirm('Excluir este lançamento?')) return; await svLanc(lancamentos.filter(l => l.id !== id)); };
-    const editar = (l: any) => { setF({ ...l, taxa: (l.taxa || 0) * 100 }); setEd(l.id); };
-    const totais = { bruto: lm.reduce((s, l) => s + (+l.bruto || 0), 0), part: lm.reduce((s, l) => s + l.tot, 0), rec: lm.filter(l => l.status === 'Recebido').reduce((s, l) => s + (+l.pago || 0), 0) };
+    const editar = (l: any) => { setF({ ...l, taxa: (l.taxa || 0) * 100, comRecebida: l.comRecebida || 0 }); setEd(l.id); };
+    const totais = { bruto: lm.reduce((s, l) => s + (+l.bruto || 0), 0), part: lm.reduce((s, l) => s + l.tot, 0), rec: lm.filter(l => l.status === 'Recebido').reduce((s, l) => s + (+l.pago || 0), 0), comRec: lm.filter(l => l.status === 'Recebido').reduce((s, l) => s + (+l.comRecebida || 0), 0) };
     
     return <div style={{ display: 'grid', gap: 20 }}>
-      <div style={s.card}><h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'} Lançamento</h3><div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}><div><label style={s.lbl}>Mês *</label><input style={s.inp} type="month" value={f.mes} onChange={e => setF({ ...f, mes: e.target.value })} /></div><div><label style={s.lbl}>Cliente *</label><select style={s.inp} value={f.cli} onChange={e => setF({ ...f, cli: e.target.value })}><option value="">Selecione...</option>{getCli().map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div><div><label style={s.lbl}>Valor Bruto (R$)</label><input style={s.inp} type="number" value={f.bruto} onChange={e => setF({ ...f, bruto: +e.target.value || 0 })} /></div><div><label style={s.lbl}>Taxa (%)</label><input style={s.inp} type="number" value={f.taxa} onChange={e => setF({ ...f, taxa: +e.target.value || 0 })} /></div><div><label style={s.lbl}>Vencimento</label><input style={s.inp} type="date" value={f.venc} onChange={e => setF({ ...f, venc: e.target.value })} /></div><div><label style={s.lbl}>Status</label><select style={s.inp} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>A Faturar</option><option>Faturado</option><option>Recebido</option><option>Vencido</option></select></div>{f.status === 'Recebido' && <div><label style={s.lbl}>Valor Pago (R$)</label><input style={s.inp} type="number" value={f.pago} onChange={e => setF({ ...f, pago: +e.target.value || 0 })} /></div>}<div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20 }}><input type="checkbox" checked={f.meta} onChange={e => setF({ ...f, meta: e.target.checked })} /><span style={{ fontSize: 13, color: t.txt }}>Bateu meta?</span></div></div><div style={{ display: 'flex', gap: 10, marginTop: 20 }}><button onClick={salvar} disabled={saving} style={{ ...s.btn, background: t.gold, color: '#fff' }}><Save size={16} />{ed ? 'Salvar' : 'Adicionar'}</button>{ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}><X size={16} />Cancelar</button>}</div></div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>{[{ l: 'Faturamento', v: totais.bruto, c: t.txt }, { l: 'Sua Participação', v: totais.part, c: t.gold }, { l: 'Recebido', v: totais.rec, c: t.grn }].map((x, i) => <div key={i} style={{ ...s.card, padding: 16, textAlign: 'center' }}><div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>{x.l}</div><div style={{ fontSize: 20, fontWeight: 700, color: x.c }}>{fmt(x.v)}</div></div>)}</div>
-      <div style={s.card}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}><h3 style={{ ...s.ttl, marginBottom: 0 }}>Lançamentos de {mes} ({lm.length})</h3><input style={{ ...s.inp, width: 200 }} placeholder="Buscar cliente..." value={filtro} onChange={e => setFiltro(e.target.value)} /></div>{lm.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 30 }}>Nenhum lançamento neste mês</p> : <div style={{ display: 'grid', gap: 10 }}>{lm.map(l => <div key={l.id} style={{ padding: 14, background: t.alt, borderRadius: 10 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}><div><div style={{ fontWeight: 600, color: t.txt }}>{l.cli}</div><div style={{ fontSize: 12, color: t.txt3, marginTop: 2 }}>Bruto: {fmt(l.bruto)} - Participação: {fmt(l.tot)}{l.atingiuMeta && ' *'}</div></div><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Badge c={l.status === 'Recebido' ? 'green' : l.status === 'Vencido' ? 'red' : l.status === 'Faturado' ? 'blue' : 'gray'}>{l.status}</Badge><button onClick={() => editar(l)} style={{ ...s.btn, padding: '6px 10px', background: t.goldBg, color: t.gold }}>Editar</button><button onClick={() => del(l.id)} style={{ ...s.btn, padding: '6px 10px', background: t.redBg, color: t.red }}>Excluir</button></div></div>{l.status === 'Recebido' && <div style={{ marginTop: 8, fontSize: 13, color: t.grn }}>Pago: {fmt(l.pago)}</div>}</div>)}</div>}</div>
+      <div style={s.card}>
+        <h3 style={s.ttl}>{ed ? 'Editar' : 'Novo'} Lançamento</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+          <div><label style={s.lbl}>Mês *</label><input style={s.inp} type="month" value={f.mes} onChange={e => setF({ ...f, mes: e.target.value })} /></div>
+          <div><label style={s.lbl}>Cliente *</label><select style={s.inp} value={f.cli} onChange={e => setF({ ...f, cli: e.target.value })}><option value="">Selecione...</option>{getCli().map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}</select></div>
+          <div><label style={s.lbl}>Valor Bruto (R$)</label><input style={s.inp} type="number" value={f.bruto} onChange={e => setF({ ...f, bruto: +e.target.value || 0 })} /><Dica texto="Valor total faturado para o cliente" /></div>
+          <div><label style={s.lbl}>Taxa (%)</label><input style={s.inp} type="number" value={f.taxa} onChange={e => setF({ ...f, taxa: +e.target.value || 0 })} /></div>
+          <div><label style={s.lbl}>Vencimento</label><input style={s.inp} type="date" value={f.venc} onChange={e => setF({ ...f, venc: e.target.value })} /></div>
+          <div><label style={s.lbl}>Status</label><select style={s.inp} value={f.status} onChange={e => setF({ ...f, status: e.target.value })}><option>A Faturar</option><option>Faturado</option><option>Recebido</option><option>Vencido</option></select></div>
+          {f.status === 'Recebido' && (
+            <>
+              <div><label style={s.lbl}>Valor Pago (R$)</label><input style={s.inp} type="number" value={f.pago} onChange={e => setF({ ...f, pago: +e.target.value || 0 })} /><Dica texto="Valor total recebido" /></div>
+              <div><label style={s.lbl}>Comissão Recebida (R$)</label><input type="number" value={f.comRecebida} onChange={e => setF({ ...f, comRecebida: +e.target.value || 0 })} style={{ ...s.inp, borderColor: t.gold }} /><Dica texto="Valor da sua comissão recebida" /></div>
+            </>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20 }}><input type="checkbox" checked={f.meta} onChange={e => setF({ ...f, meta: e.target.checked })} /><span style={{ fontSize: 13, color: t.txt }}>Bateu meta?</span></div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <button onClick={salvar} disabled={saving} style={{ ...s.btn, background: t.gold, color: '#fff' }}><Save size={16} />{ed ? 'Salvar' : 'Adicionar'}</button>
+          {ed && <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}><X size={16} />Cancelar</button>}
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+        {[
+          { l: 'Faturamento', v: totais.bruto, c: t.txt },
+          { l: 'Sua Participação', v: totais.part, c: t.gold },
+          { l: 'Recebido', v: totais.rec, c: t.grn },
+          { l: 'Comissão Recebida', v: totais.comRec, c: t.pur }
+        ].map((x, i) => (
+          <div key={i} style={{ ...s.card, padding: 16, textAlign: 'center' }}>
+            <div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>{x.l}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: x.c }}>{fmt(x.v)}</div>
+          </div>
+        ))}
+      </div>
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <h3 style={{ ...s.ttl, marginBottom: 0 }}>Lançamentos de {mes} ({lm.length})</h3>
+          <input style={{ ...s.inp, width: 200 }} placeholder="Buscar cliente..." value={filtro} onChange={e => setFiltro(e.target.value)} />
+        </div>
+        {lm.length === 0 ? (
+          <p style={{ color: t.txt3, textAlign: 'center', padding: 30 }}>Nenhum lançamento neste mês</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {lm.map(l => (
+              <div key={l.id} style={{ padding: 14, background: t.alt, borderRadius: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: t.txt }}>{l.cli}</div>
+                    <div style={{ fontSize: 12, color: t.txt3, marginTop: 2 }}>Bruto: {fmt(l.bruto)} - Participação: {fmt(l.tot)}{l.atingiuMeta && ' ★'}</div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Badge c={l.status === 'Recebido' ? 'green' : l.status === 'Vencido' ? 'red' : l.status === 'Faturado' ? 'blue' : 'gray'}>{l.status}</Badge>
+                    <button onClick={() => editar(l)} style={{ ...s.btn, padding: '6px 10px', background: t.goldBg, color: t.gold }}>Editar</button>
+                    <button onClick={() => del(l.id)} style={{ ...s.btn, padding: '6px 10px', background: t.redBg, color: t.red }}>Excluir</button>
+                  </div>
+                </div>
+                {l.status === 'Recebido' && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 13 }}>
+                    <span style={{ color: t.grn }}>Pago: {fmt(l.pago)}</span>
+                    <span style={{ color: t.pur, fontWeight: 600 }}>Comissão: {fmt(l.comRecebida || 0)}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>;
   };
 
   const Comissoes = () => {
     const cm = comCons();
-    const total = cm.reduce((s: any, c: any) => s + c.com, 0);
+    const totalComRec = cm.reduce((s: any, c: any) => s + c.comRec, 0);
+    const totalComCalc = cm.reduce((s: any, c: any) => s + c.com, 0);
+    
     return <div style={{ display: 'grid', gap: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}><div style={{ ...s.card, background: t.purBg, border: `1px solid ${t.pur}` }}><div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>TOTAL COMISSÕES</div><div style={{ fontSize: 32, fontWeight: 700, color: t.pur }}>{fmt(total)}</div><div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>{mes}</div></div><div style={s.card}><div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>CONSULTORES</div><div style={{ fontSize: 32, fontWeight: 700, color: t.txt }}>{cm.length}</div><div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>com recebimentos</div></div></div>
-      <div style={s.card}><h3 style={s.ttl}>Comissões por Consultor</h3>{cm.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 30 }}>Nenhuma comissão neste mês</p> : <div style={{ display: 'grid', gap: 12 }}>{cm.map((c: any, i: number) => <div key={i} style={{ padding: 16, background: t.alt, borderRadius: 12 }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}><div><div style={{ fontWeight: 600, color: t.txt, fontSize: 16 }}>{c.nome}</div><div style={{ fontSize: 12, color: t.txt3 }}>{pct(c.pct)} de comissão</div></div><div style={{ textAlign: 'right' }}><div style={{ fontSize: 24, fontWeight: 700, color: t.pur }}>{fmt(c.com)}</div></div></div><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}><div style={{ padding: 10, background: t.grnBg, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 11, color: t.txt3 }}>Recebido</div><div style={{ fontSize: 16, fontWeight: 600, color: t.grn }}>{fmt(c.rec)}</div></div><div style={{ padding: 10, background: t.orgBg, borderRadius: 8, textAlign: 'center' }}><div style={{ fontSize: 11, color: t.txt3 }}>Pendente</div><div style={{ fontSize: 16, fontWeight: 600, color: t.org }}>{fmt(c.pend)}</div></div></div></div>)}</div>}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+        <div style={{ ...s.card, background: t.goldBg, border: `1px solid ${t.gold}` }}>
+          <div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>COMISSÃO RECEBIDA</div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: t.gold }}>{fmt(totalComRec)}</div>
+          <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>{mes}</div>
+        </div>
+        <div style={{ ...s.card, background: t.purBg, border: `1px solid ${t.pur}` }}>
+          <div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>COMISSÃO CONSULTORES</div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: t.pur }}>{fmt(totalComCalc)}</div>
+          <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>a pagar</div>
+        </div>
+        <div style={s.card}>
+          <div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>LUCRO COMISSÕES</div>
+          <div style={{ fontSize: 32, fontWeight: 700, color: totalComRec - totalComCalc >= 0 ? t.grn : t.red }}>{fmt(totalComRec - totalComCalc)}</div>
+          <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>após repasse</div>
+        </div>
+      </div>
+      
+      <div style={s.card}>
+        <h3 style={s.ttl}>Comissões por Consultor</h3>
+        {cm.length === 0 ? (
+          <p style={{ color: t.txt3, textAlign: 'center', padding: 30 }}>Nenhuma comissão neste mês</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 12 }}>
+            {cm.map((c: any, i: number) => (
+              <div key={i} style={{ padding: 16, background: t.alt, borderRadius: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, color: t.txt, fontSize: 16 }}>{c.nome}</div>
+                    <div style={{ fontSize: 12, color: t.txt3 }}>{pct(c.pct)} de comissão</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: t.pur }}>{fmt(c.com)}</div>
+                    <div style={{ fontSize: 11, color: t.txt3 }}>a receber</div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <div style={{ padding: 10, background: t.goldBg, borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: t.txt3 }}>Com. Recebida</div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: t.gold }}>{fmt(c.comRec)}</div>
+                  </div>
+                  <div style={{ padding: 10, background: t.grnBg, borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: t.txt3 }}>Valor Pago</div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: t.grn }}>{fmt(c.rec)}</div>
+                  </div>
+                  <div style={{ padding: 10, background: t.orgBg, borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: t.txt3 }}>Pendente</div>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: t.org }}>{fmt(c.pend)}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>;
   };
 
@@ -417,7 +560,276 @@ export default function App() {
     </div>;
   };
 
-  const Metas = () => { 
+  const Faturamento = () => {
+    const ef = { mes: mes, cli: '', valor: 0 };
+    const [f, setF] = useState<any>(ef);
+    const [ed, setEd] = useState<any>(null);
+    const [filtro, setFiltro] = useState('');
+    
+    const fm = faturamentos.filter(fat => fat.mes === mes).filter(fat => !filtro || fat.cli.toLowerCase().includes(filtro.toLowerCase()));
+    const totalFat = fm.reduce((s, fat) => s + (+fat.valor || 0), 0);
+    const clientesComFat = [...new Set(faturamentos.filter(fat => fat.mes === mes).map(fat => fat.cli))].length;
+    
+    const getMetaCliente = (cliNome: string) => {
+      const cli = clientes.find(c => c.nome === cliNome);
+      return +(cli?.metaFat || 0);
+    };
+    
+    const atingiuMeta = (fat: any) => {
+      const meta = getMetaCliente(fat.cli);
+      return meta > 0 && (+fat.valor || 0) >= meta;
+    };
+    
+    const salvar = async () => {
+      if (!f.cli) return notify('Selecione o cliente!');
+      if (+f.valor <= 0) return notify('Informe o valor do faturamento!');
+      
+      const dados = { ...f, valor: +f.valor || 0 };
+      
+      if (ed) {
+        await svFat(faturamentos.map(fat => fat.id === ed ? { ...dados, id: ed } : fat));
+        setEd(null);
+      } else {
+        // Verifica se já existe faturamento para este cliente/mês
+        const existe = faturamentos.find(fat => fat.cli === f.cli && fat.mes === f.mes);
+        if (existe) {
+          if (!confirm(`Já existe faturamento para ${f.cli} em ${f.mes}. Deseja substituir?`)) return;
+          await svFat(faturamentos.map(fat => fat.id === existe.id ? { ...dados, id: existe.id } : fat));
+        } else {
+          await svFat([...faturamentos, { ...dados, id: Date.now() }]);
+        }
+      }
+      setF(ef);
+    };
+    
+    const del = async (id: any) => {
+      if (!confirm('Excluir este faturamento?')) return;
+      await svFat(faturamentos.filter(fat => fat.id !== id));
+    };
+    
+    const editar = (fat: any) => {
+      setF({ ...fat });
+      setEd(fat.id);
+    };
+    
+    // Calcula total sob gestão (últimos 12 meses)
+    const calcTotalGestao = () => {
+      const hoje = new Date();
+      let total = 0;
+      for (let i = 0; i < 12; i++) {
+        const ms = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1).toISOString().slice(0, 7);
+        const fatMes = faturamentos.filter(fat => fat.mes === ms);
+        total += fatMes.reduce((s, fat) => s + (+fat.valor || 0), 0);
+      }
+      return total;
+    };
+    
+    // Clientes que bateram meta no mês
+    const clientesMeta = fm.filter(fat => atingiuMeta(fat)).length;
+    
+    // Evolução mensal dos últimos 6 meses
+    const evolucaoMensal = () => {
+      const dados: any[] = [];
+      const hoje = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const ms = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1).toISOString().slice(0, 7);
+        const fatMes = faturamentos.filter(fat => fat.mes === ms);
+        const total = fatMes.reduce((s, fat) => s + (+fat.valor || 0), 0);
+        const qtdMeta = fatMes.filter(fat => atingiuMeta(fat)).length;
+        dados.push({ mes: ms.slice(5), total, qtdMeta, qtdClientes: fatMes.length });
+      }
+      return dados;
+    };
+    
+    // Top 5 clientes por faturamento no mês
+    const topClientes = () => {
+      return [...fm]
+        .sort((a, b) => (+b.valor || 0) - (+a.valor || 0))
+        .slice(0, 5)
+        .map(fat => ({ nome: fat.cli, valor: +fat.valor || 0 }));
+    };
+    
+    // Média mensal
+    const mediaMensal = () => {
+      const evo = evolucaoMensal();
+      const mesesComDados = evo.filter(e => e.total > 0);
+      if (mesesComDados.length === 0) return 0;
+      return mesesComDados.reduce((s, e) => s + e.total, 0) / mesesComDados.length;
+    };
+    
+    const evData = evolucaoMensal();
+    const topData = topClientes();
+    
+    return <div style={{ display: 'grid', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+        <div style={{ ...s.card, background: t.goldBg, border: `1px solid ${t.gold}` }}>
+          <div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>FATURAMENTO {mes}</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: t.gold }}>{fmt(totalFat)}</div>
+          <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>{clientesComFat} clientes</div>
+        </div>
+        <div style={{ ...s.card, background: t.grnBg, border: `1px solid ${t.grn}` }}>
+          <div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>BATERAM META</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: t.grn }}>{clientesMeta}</div>
+          <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>clientes com bônus</div>
+        </div>
+        <div style={s.card}>
+          <div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>MÉDIA MENSAL</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: t.txt }}>{fmt(mediaMensal())}</div>
+          <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>últimos 6 meses</div>
+        </div>
+        <div style={s.card}>
+          <div style={{ fontSize: 12, color: t.txt3, marginBottom: 4 }}>TOTAL SOB GESTÃO</div>
+          <div style={{ fontSize: 28, fontWeight: 700, color: t.txt }}>{fmt(calcTotalGestao())}</div>
+          <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>últimos 12 meses</div>
+        </div>
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: 20 }}>
+        <div style={s.card}>
+          <h3 style={s.ttl}>Evolução Mensal</h3>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={evData}>
+              <XAxis dataKey="mes" fontSize={11} stroke={t.txt3} axisLine={false} tickLine={false} />
+              <YAxis fontSize={11} stroke={t.txt3} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} />
+              <Tooltip formatter={v => fmt(v as number)} contentStyle={{ background: t.card, border: `1px solid ${t.brd}`, borderRadius: 8, fontSize: 12 }} />
+              <Area type="monotone" dataKey="total" name="Faturamento" stroke={t.gold} fill={t.goldBg} strokeWidth={2} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        
+        {topData.length > 0 && (
+          <div style={s.card}>
+            <h3 style={s.ttl}>Top Clientes ({mes})</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <ResponsiveContainer width="45%" height={160}>
+                <PieChart>
+                  <Pie data={topData} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={60} innerRadius={35}>
+                    {topData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={v => fmt(v as number)} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{ flex: 1 }}>
+                {topData.map((c: any, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: 3, background: COLORS[i % COLORS.length] }} />
+                    <span style={{ flex: 1, color: t.txt2, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.nome}</span>
+                    <span style={{ fontWeight: 600, color: t.txt, fontSize: 13 }}>{fmt(c.valor)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      
+      <div style={s.card}>
+        <h3 style={s.ttl}>Comparativo Mensal</h3>
+        <ResponsiveContainer width="100%" height={180}>
+          <BarChart data={evData}>
+            <XAxis dataKey="mes" fontSize={11} stroke={t.txt3} axisLine={false} tickLine={false} />
+            <YAxis fontSize={11} stroke={t.txt3} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000000 ? `${(v / 1000000).toFixed(1)}M` : v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} width={40} />
+            <Tooltip formatter={v => fmt(v as number)} contentStyle={{ background: t.card, border: `1px solid ${t.brd}`, borderRadius: 8, fontSize: 12 }} />
+            <Bar dataKey="total" name="Faturamento" fill={t.gold} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}>
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: t.gold }} /> Faturamento Total
+          </div>
+        </div>
+      </div>
+      
+      <div style={s.card}>
+        <h3 style={s.ttl}>{ed ? 'Editar' : 'Registrar'} Faturamento</h3>
+        <p style={{ color: t.txt3, fontSize: 13, marginBottom: 16, marginTop: -8 }}>
+          Informe o faturamento que o cliente teve sob sua gestão
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12 }}>
+          <div>
+            <label style={s.lbl}>Mês *</label>
+            <input style={s.inp} type="month" value={f.mes} onChange={e => setF({ ...f, mes: e.target.value })} />
+          </div>
+          <div>
+            <label style={s.lbl}>Cliente *</label>
+            <select style={s.inp} value={f.cli} onChange={e => setF({ ...f, cli: e.target.value })}>
+              <option value="">Selecione...</option>
+              {getCli().map(c => <option key={c.id} value={c.nome}>{c.nome}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={s.lbl}>Faturamento do Cliente (R$) *</label>
+            <input style={s.inp} type="number" value={f.valor} onChange={e => setF({ ...f, valor: +e.target.value || 0 })} placeholder="0.00" />
+            {f.cli && getMetaCliente(f.cli) > 0 && (
+              <Dica texto={`Meta: ${fmt(getMetaCliente(f.cli))}`} />
+            )}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+          <button onClick={salvar} disabled={saving} style={{ ...s.btn, background: t.gold, color: '#fff' }}>
+            <Save size={16} />{ed ? 'Salvar' : 'Registrar'}
+          </button>
+          {ed && (
+            <button onClick={() => { setEd(null); setF(ef); }} style={{ ...s.btn, background: t.alt, color: t.txt }}>
+              <X size={16} />Cancelar
+            </button>
+          )}
+        </div>
+      </div>
+      
+      <div style={s.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+          <h3 style={{ ...s.ttl, marginBottom: 0 }}>Faturamentos de {mes} ({fm.length})</h3>
+          <input style={{ ...s.inp, width: 200 }} placeholder="Buscar cliente..." value={filtro} onChange={e => setFiltro(e.target.value)} />
+        </div>
+        {fm.length === 0 ? (
+          <p style={{ color: t.txt3, textAlign: 'center', padding: 30 }}>Nenhum faturamento registrado neste mês</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 10 }}>
+            {fm.map(fat => {
+              const meta = getMetaCliente(fat.cli);
+              const bateuMeta = atingiuMeta(fat);
+              const pctMeta = meta > 0 ? (+fat.valor / meta) * 100 : 0;
+              
+              return (
+                <div key={fat.id} style={{ padding: 14, background: t.alt, borderRadius: 10, borderLeft: `4px solid ${bateuMeta ? t.grn : meta > 0 ? t.org : t.brd}` }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, color: t.txt, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {fat.cli}
+                        {bateuMeta && <Badge c="green">META ✓</Badge>}
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: t.gold, marginTop: 4 }}>
+                        {fmt(fat.valor)}
+                      </div>
+                      {meta > 0 && (
+                        <div style={{ fontSize: 12, color: t.txt3, marginTop: 4 }}>
+                          Meta: {fmt(meta)} ({pctMeta.toFixed(0)}%)
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => editar(fat)} style={{ ...s.btn, padding: '6px 10px', background: t.goldBg, color: t.gold }}>Editar</button>
+                      <button onClick={() => del(fat.id)} style={{ ...s.btn, padding: '6px 10px', background: t.redBg, color: t.red }}>Excluir</button>
+                    </div>
+                  </div>
+                  {meta > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ height: 6, background: t.card, borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${Math.min(pctMeta, 100)}%`, background: bateuMeta ? t.grn : t.org, borderRadius: 3 }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>;
+  };
+
+  const Metas = () => {
     const [f, setF] = useState({ cons: 'GERAL', mes, val: 0 }); 
     const salvar = async () => { const ex = metas.findIndex(m => m.cons === f.cons && m.mes === f.mes); if (ex >= 0) await svMet(metas.map((m, i) => i === ex ? { ...f, id: m.id } : m)); else await svMet([...metas, { ...f, id: Date.now() }]); setF({ cons: 'GERAL', mes, val: 0 }); };
     const mg = metas.find(m => m.cons === 'GERAL' && m.mes === mes);
@@ -456,7 +868,7 @@ export default function App() {
 
   if (loading) return <div style={{ minHeight: '100vh', background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 20 }}><Logo /><Loader size={28} color={t.gold} className="spin" /><span style={{ color: t.txt2 }}>Carregando...</span></div>;
 
-  const C: any = { dashboard: Dashboard, consultores: Consultores, clientes: Clientes, custos: Custos, lancamentos: Lancamentos, comissoes: Comissoes, tarefas: Tarefas, cobranca: Cobranca, projecao: Projecao, performance: Performance, ranking: Ranking, metas: Metas, relatorio: Relatorio, usuarios: Usuarios }[tab] || Dashboard;
+  const C: any = { dashboard: Dashboard, consultores: Consultores, clientes: Clientes, custos: Custos, lancamentos: Lancamentos, faturamento: Faturamento, comissoes: Comissoes, tarefas: Tarefas, cobranca: Cobranca, projecao: Projecao, performance: Performance, ranking: Ranking, metas: Metas, relatorio: Relatorio, usuarios: Usuarios }[tab] || Dashboard;
 
   return <div style={{ minHeight: '100vh', background: t.bg }}>
     <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
