@@ -699,7 +699,26 @@ export default function App() {
       </div>
     </div>;
   };
-'green'}>{c.risco}</Badge></div></div><div style={{ fontWeight: 700, color: t.txt, fontSize: 16 }}>{fmt(c.rec)}</div></div>)}</div>}</div>; };
+
+  const Ranking = () => { 
+    const r = rank(); 
+    return <div style={s.card}>
+      <h3 style={s.ttl}>🏆 Ranking de Clientes</h3>
+      {r.length === 0 ? <p style={{ color: t.txt3, textAlign: 'center', padding: 30 }}>Nenhum cliente</p> : 
+      <div style={{ display: 'grid', gap: 10 }}>
+        {r.map((c, i) => <div key={c.id} style={{ padding: 14, background: t.alt, borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontWeight: 700, color: i < 3 ? t.gold : t.txt3, fontSize: 20 }}>{i + 1}º</span>
+            <div>
+              <div style={{ fontWeight: 600, color: t.txt }}>{c.nome}</div>
+              <Badge c={c.risco === 'Alto' ? 'red' : c.risco === 'Médio' ? 'orange' : 'green'}>{c.risco}</Badge>
+            </div>
+          </div>
+          <div style={{ fontWeight: 700, color: t.txt, fontSize: 16 }}>{fmt(c.rec)}</div>
+        </div>)}
+      </div>}
+    </div>; 
+  };
 
   const Metas = () => { 
     const [f, setF] = useState({ cons: 'GERAL', mes, val: 0 }); 
