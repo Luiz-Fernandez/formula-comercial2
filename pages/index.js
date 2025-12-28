@@ -414,27 +414,44 @@ export default function App() {
           <p style={{ color: t.txt3, textAlign: 'center', padding: 30 }}>Nenhum lançamento neste mês</p>
         ) : (
           <div style={{ display: 'grid', gap: 10 }}>
-            {lm.map(l => (
-              <div key={l.id} style={{ padding: 14, background: t.alt, borderRadius: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-                  <div>
-                    <div style={{ fontWeight: 600, color: t.txt }}>{l.cli}</div>
-                    <div style={{ fontSize: 12, color: t.txt3, marginTop: 2 }}>Bruto: {fmt(l.bruto)} - Participação: {fmt(l.tot)}{l.atingiuMeta && ' ★'}</div>
+            {lm.map(l => {
+              const taxaAtual = (l.taxa || 0) * 100;
+              const atualizarTaxa = async (novaTaxa: number) => {
+                await svLanc(lancamentos.map(x => x.id === l.id ? { ...x, taxa: novaTaxa / 100 } : x));
+              };
+              return (
+                <div key={l.id} style={{ padding: 14, background: t.alt, borderRadius: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, color: t.txt }}>{l.cli}</div>
+                      <div style={{ fontSize: 12, color: t.txt3, marginTop: 2 }}>
+                        Bruto: {fmt(l.bruto)} 
+                        <span style={{ marginLeft: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          (<input 
+                            type="number" 
+                            value={taxaAtual} 
+                            onChange={e => atualizarTaxa(+e.target.value || 0)}
+                            style={{ width: 40, padding: '2px 4px', border: `1px solid ${t.brd}`, borderRadius: 4, fontSize: 12, textAlign: 'center', background: t.card }}
+                          />% taxa)
+                        </span>
+                        → {fmt(l.tot)}{l.atingiuMeta && ' ★'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Badge c={l.status === 'Recebido' ? 'green' : l.status === 'Vencido' ? 'red' : l.status === 'Faturado' ? 'blue' : 'gray'}>{l.status}</Badge>
+                      <button onClick={() => editar(l)} style={{ ...s.btn, padding: '6px 10px', background: t.goldBg, color: t.gold }}>Editar</button>
+                      <button onClick={() => del(l.id)} style={{ ...s.btn, padding: '6px 10px', background: t.redBg, color: t.red }}>Excluir</button>
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Badge c={l.status === 'Recebido' ? 'green' : l.status === 'Vencido' ? 'red' : l.status === 'Faturado' ? 'blue' : 'gray'}>{l.status}</Badge>
-                    <button onClick={() => editar(l)} style={{ ...s.btn, padding: '6px 10px', background: t.goldBg, color: t.gold }}>Editar</button>
-                    <button onClick={() => del(l.id)} style={{ ...s.btn, padding: '6px 10px', background: t.redBg, color: t.red }}>Excluir</button>
-                  </div>
+                  {l.status === 'Recebido' && (
+                    <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 13 }}>
+                      <span style={{ color: t.grn }}>Pago: {fmt(l.pago)}</span>
+                      <span style={{ color: t.pur, fontWeight: 600 }}>Comissão: {fmt(l.comRecebida || 0)}</span>
+                    </div>
+                  )}
                 </div>
-                {l.status === 'Recebido' && (
-                  <div style={{ marginTop: 8, display: 'flex', gap: 16, fontSize: 13 }}>
-                    <span style={{ color: t.grn }}>Pago: {fmt(l.pago)}</span>
-                    <span style={{ color: t.pur, fontWeight: 600 }}>Comissão: {fmt(l.comRecebida || 0)}</span>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
